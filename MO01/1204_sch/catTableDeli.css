@@ -1,0 +1,1143 @@
+/* ================================================
+   共通スタイル
+================================================ */
+body {
+    font-family: 'メイリオ', 'Hiragino Kaku Gothic Pro', sans-serif;
+}
+
+.calendar-container {
+    position: relative;
+    overflow: visible;
+    margin: 20px;
+}
+
+.task-container {
+    margin: 20px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+}
+
+.task-group {
+    margin-bottom: 15px;
+}
+
+.task-group h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #333;
+}
+
+/* ================================================
+   1段目（設置・回収スケジュール）
+================================================ */
+.calendar-table1 {
+    width: auto;
+    table-layout: fixed;
+    margin: 20px;
+    text-align: center;
+    z-index: 60;
+    border-collapse: separate;
+}
+
+.calendar-cell {
+    vertical-align: top !important;
+}
+
+.calendar-table1 th,
+.calendar-table1 td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    vertical-align: middle;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.calendar-table1 th.date,
+.calendar-table1 td.dateindex {
+    width: auto;
+    background-color: #f2f2f2;
+}
+
+.calendar-table1 th.task,
+.calendar-table1 td.calendar-cell {
+    width: 260px;
+    min-width: 260px;
+    max-width: 260px;
+    text-align: center;
+    border: 1px solid #ddd;
+    padding: 5px;
+}
+
+/* ヘッダー固定 */
+.calendar-table1 thead th {
+    position: sticky;
+    top: 90px;
+    background-color: #f2f2f2;
+    z-index: 45;
+    height: 30px;
+}
+
+/* ヘッダー幅調整 */
+.calendar-header1 th:not(:nth-child(1)) {
+    width: 420px;
+    min-width: 420px;
+    max-width: 420px;
+}
+
+.calendar-header1 th:nth-child(4),
+.calendar-table1 tbody td:nth-child(4) {
+    width: 300px;
+    min-width: 300px;
+    max-width: 300px;
+}
+
+.calendar-header1 th:nth-child(5),
+.calendar-table1 tbody td:nth-child(5) {
+    width: 300px;
+    min-width: 300px;
+    max-width: 300px;
+}
+
+.calendar-header1 th:nth-child(11),
+.calendar-table1 tbody td:nth-child(11) {
+    width: 300px;
+    min-width: 300px;
+    max-width: 300px;
+}
+
+/* 背景色分け */
+.calendar-table1 tbody tr td:nth-child(4) {
+    background-color: #E0F7FA !important;
+}
+
+.calendar-table1 tbody tr td:nth-child(5) {
+    background-color: #FFF9C4 !important;
+}
+
+.calendar-table1 tbody tr td:not(:nth-child(4)):not(:nth-child(5)) {
+    background-color: #FFFFFF !important;
+}
+
+/* タスクバー1 */
+.task-bar1 {
+    position: relative;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    color: white;
+    padding: 0px 5px;
+    margin: 5px 0;
+    background-color: #4CAF50;
+    border: 3px solid #d3d3d3;
+    border-radius: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.task-text-bottom {
+    display: block;
+    font-size: 12px;
+    color: #333;
+    margin-top: 5px;
+}
+
+
+/* ================================================
+   2段目（全体スケジュール）
+================================================ */
+.calendar-table2 {
+    table-layout: fixed;
+    margin: 20px;
+    text-align: center;
+    z-index: 60;
+    border-collapse: separate;
+}
+
+.calendar-table2 th,
+.calendar-table2 td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    vertical-align: middle;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.calendar-table2 tbody td.dateindex {
+    position: sticky;
+    left: 0px;
+    z-index: 8;
+    background-color: #f2f2f2;
+}
+
+.calendar-table2 th:first-child,
+.calendar-table2 td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 500;
+  background-color: #f2f2f2;
+}
+
+.calendar-table2 td {
+    height: 60px;
+    z-index: -20;
+    background-color: white;
+}
+
+/* 「3：回収予定」の右に点線を引く */
+.calendar-table2 th:nth-child(4),
+.calendar-table2 td:nth-child(4) {
+  border-right: 2px dashed #999; /* ← 点線の色と太さ */
+}
+.calendar-table2 th:nth-child(5),
+.calendar-table2 td:nth-child(5) {
+  border-right: 2px dashed #999; /* ← 点線の色と太さ */
+}
+
+/* 背景色 */
+.calendar-table2 td:nth-child(2) {  /* 1：現調 */
+    background-color: #fffff0; /* アイボリー */
+}
+
+.calendar-table2 td:nth-child(3) {  /* 2：プラン作成 */
+    background-color: #f0fff0; /* ミントグリーン */
+}
+
+.calendar-table2 td:nth-child(4) {  /* 3：設置予定 */
+    background-color: #f0ffff; /* アクア（現状維持） */
+}
+
+.calendar-table2 td:nth-child(5) {  /* 3：回収予定 */
+    background-color: #fff5f7; /* 🌸 超淡いピンク（ほんのり） */
+}
+
+.calendar-table2 td:nth-child(6),
+.calendar-table2 td:nth-child(7) {  /* 3：設置メモ */
+    background-color: #ffffff; /* 白 */
+}
+
+.calendar-table2 td:nth-child(8),
+.calendar-table2 td:nth-child(9),
+.calendar-table2 td:nth-child(10),
+.calendar-table2 td:nth-child(11),
+.calendar-table2 td:nth-child(12) {  /* 3：1台目～5台目 */
+    background-color: #f9f5ff; /* 💜 超淡いラベンダー */
+}
+
+.calendar-table2 td:nth-child(13) {  /* 4：撮影 */
+    background-color: #ffffff; /* 白 */
+}
+
+.task-top-row {
+    display: flex;
+    justify-content: space-between;
+}
+
+
+
+/* ================================================
+   ナビゲーションボタン
+================================================ */
+#current-month { margin-left: 30px; font-size: xx-large; }
+
+#prev-month, #now-month, #next-month {
+    font-size: 20px;
+    padding: 10px 20px;
+    border: 0;
+    border-radius: 10px;
+    margin-top: 20px;
+    background-color: #4169e1;
+    color: white;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+#prev-month:hover,#now-month:hover,#next-month:hover {
+    background-color: #2749b8;
+    transition: background-color 0.3s ease;
+}
+#reload-page {
+    font-size: 20px;
+    padding: 10px 20px;
+    border: 0;
+    border-radius: 10px;
+    margin-top: 20px;
+    margin-left: 5px;
+    background-color: #FF8C00;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+#reload-page:hover { background-color: #E67300; }
+
+#scroll-today {
+    font-size: 20px;
+    padding: 10px 20px;
+    border: 0;
+    border-radius: 10px;
+    margin-top: 20px;
+    margin-left: 5px;
+    background-color: #2ecc71;  /* ✅ グリーン系（鮮やかで視認性良） */
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.3s ease;
+}
+
+#scroll-today:hover {
+    background-color: #27ae60;  /* ✅ 濃いグリーン（ホバー時） */
+}
+
+#scroll-top {
+    font-size: 20px;
+    padding: 10px 20px;
+    border: 0;
+    border-radius: 10px;
+    margin-top: 20px;
+    margin-left: 5px;
+    background-color: #708090;  /* ✅ スレートグレー（落ち着き系） */
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.3s ease;
+}
+
+#scroll-top:hover {
+    background-color: #4f5964;  /* ✅ 濃いめグレー（hover） */
+}
+
+/* ================================================
+   ナビゲーションバー固定化（スクロール対応）
+================================================ */
+#calendar-navigation {
+  position: sticky ;      /* ✅ スクロールしても固定 */
+  top: 500;                /* 画面上端に配置 */
+  z-index: 300;         /* ✅ 最前面 */
+  background: rgba(255, 255, 255, 0.95); /* ✅ 背景透過で自然に */
+  backdrop-filter: blur(6px);  /* ✅ 背景ぼかし効果（対応ブラウザで美しく） */
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10px 20px;
+  gap: 6px;
+  border-bottom: 1px solid #ccc; /* 視覚的に区切る */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+
+/* ================================================
+   その他
+================================================ */
+.assigned-dropdown {
+    color: black !important;
+    background-color: white !important;
+    width: 100px !important;
+    margin-left: auto;
+}
+
+.tooltip {
+    display: none;
+    background-color: #333;
+    color: #fff;
+    padding: 5px;
+    border-radius: 4px;
+    white-space: pre;
+/*    z-index: 1000; */
+    opacity: 0.9;
+    text-align: left;
+}
+
+.custom-tooltip {
+    background-color: #fff9c4; /* パステルイエロー */
+    color: #333;
+    padding: 6px 10px;
+    font-size: 12px;
+    border: none; /* 👈 境界線を消すポイント */
+    border-radius: 4px;
+    border: 1px solid #999;
+    z-index: 999;
+    white-space: nowrap;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    pointer-events: none;
+}
+
+/* === トグルボタンコンテナ === */
+/* === ボタンを含む行を基準にする === */
+#toggle-row {
+  position: relative;
+}
+
+/* === トグルボタンの位置と見た目 === */
+#column-toggle-buttons {
+  position: sticky;
+  top: 84px;                  /* headerの下に配置（70px + header高さ） */
+  left: 600px;                  
+  z-index: 900;                /* ヘッダーより下・テーブルより上 */
+  display: flex;
+  gap: 10px;
+  justify-content: flex-start;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(4px);
+  padding: 6px 12px;
+  border-bottom: 1px solid #ddd;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  width: 100%;
+}
+
+/* === ボタン共通デザイン（モダン） === */
+.toggle-btn {
+  background-color: #ffffff;
+  color: #0078d7;
+  border: 1.4px solid #0078d7;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  height: 40px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transition: all 0.25s ease;
+}
+
+/* === ホバー時（反転＋浮き上がり） === */
+.toggle-btn:hover {
+  background-color: #0078d7;
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+}
+
+/* === 押した瞬間のアニメーション === */
+.toggle-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+/* アクティブ（表示中）状態：反転 */
+.toggle-btn.active {
+  background-color: #ffffff;   /* 青背景 */
+  color: #0078d7;              /* 白文字 */
+  border-color: #0078d7;
+}
+
+/* 非アクティブ（非表示中）状態：通常 */
+.toggle-btn.inactive {
+  background-color: #0078d7;   /* 白背景 */
+  color: #ffffff;              /* 青文字 */
+  border: 1.4px solid #ffffff;
+}
+
+
+/* ================================================
+   カレンダーヘッダー固定（スクロール追従）
+================================================ */
+/* 💡 親コンテナ（overflowやz-indexの影響を排除） */
+.calendar-container {
+  position: static !important;  /* ✅ relative → static に変更 */
+  overflow: visible !important; /* ✅ stickyの妨げを防止 */
+  z-index: auto !important;
+}
+
+
+
+/* =======================================================
+   カレンダー上部ヘッダー（タイトル・ナビなど）
+======================================================= */
+/* 横スクロールしても動かないラッパー */
+#calendar-header-wrapper {
+  position: fixed;      /* ← 画面に固定される（横スクロール無効） */
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 950;
+  background: transparent;
+}
+
+/* stickyが効くためには fixed の中ではなく、bodyに配置されている必要がある */
+#calendar-container-header {
+  position: sticky;
+  top: 0;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid #ccc;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  padding: 4px 12px;
+  line-height: 1.2;
+  height: 52px;
+
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#calendar-container-header button {
+  margin-top: -2px;   /* ← ボタンを上に4px移動 */
+}
+
+/* =======================================================
+   テーブルヘッダー（1段目・2段目共通）
+======================================================= */
+.calendar-table1 thead th,
+.calendar-table2 thead th {
+  position: sticky;
+  top: 64px; /* ✅ トグルボタンの下（70 + 60 + 50） */
+  z-index: 300;
+  background-color: #f2f2f2;
+  height: 30px;
+}
+
+/* =======================================================
+   親コンテナ（sticky無効化防止）
+======================================================= */
+.calendar-container {
+  position: static !important;
+  overflow: visible !important;
+  z-index: auto !important;
+}
+
+
+
+.task-bar {
+  display: flex;
+  align-items: flex-start !important;     /* ← center はやめる */
+  justify-content: space-between;
+
+  background-color: #fff;
+  border: 2px solid #a5cda5;
+  border-radius: 6px;
+
+  min-height: 68px;            /* ★ 固定 height をやめる */
+  height: auto;                /* ★ 追加 */
+
+  margin: 3px 0;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  color: #333;
+}
+
+
+/* 左側のボタン／プルダウン部分 */
+.task-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2px; /* ← 上下の間隔を8px開ける */
+  margin-right: 6px;
+}
+
+/* 右側の情報ブロック（上中下3段） */
+.task-right {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px; /* ← 上下の間隔を8px開ける */
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+/* 現場名・メモなど */
+.task-top,
+.task-middle,
+.task-bottom {
+  font-size: 12px;
+  line-height: 1.2em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left; /* ← これを追加！ */
+}
+
+/* メモ欄（下段） */
+.install-row-4,
+.task-bottom {
+  height: 24px;                 /* ← 高さを少しアップ（従来は約14px想定） */
+  font-size: 12px;
+  line-height: 18px;        /* ★ height より少し小さく */
+  padding: 1px 6px 0 6px;   /* ★ 下 padding を 0 に */
+  background-color: #f9f9f9;
+  border: 1px solid #a5cda5;    /* 枠もプルダウンと同系の淡いグリーン */
+  border-radius: 4px;
+  padding: 2px 6px;
+  box-sizing: border-box;     /* ★必須 */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #333;
+  transition: border-color 0.2s, background-color 0.2s;
+  align-items: center;   /* ★ 縦中央寄せ */
+}
+
+
+/* メモ欄（共通） */
+.task-bar [contenteditable="true"] {
+  min-height: 22px;
+  font-size: 12px;
+  padding: 2px 6px;
+
+  background-color: #f9f9f9;
+  border: 1px dashed #a5cda5;
+  border-radius: 4px;
+
+  color: #333;
+  cursor: text;
+  outline: none;
+
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.task-bar [contenteditable="true"]:focus {
+  background-color: #ffffff;
+  border-color: #6fa66f;
+}
+
+
+/* ============================
+   移設バー（回収バー） 全体
+   ============================ */
+/* ============================
+   移設バー（回収バー）
+   ※ 枠は設置バーと共通
+   ============================ */
+.task-bar.bar-relocate {
+  background: #f3faf5;            /* 設置より少し薄い */
+  border: 1px solid #a5cda5;      /* ← 設置バーと同じ */
+  border-radius: 6px;             /* ← 同じ */
+  padding: 4px 6px;
+  margin-bottom: 4px;
+  padding-bottom: 0 !important;   /* ★ ここが最大の原因 */
+}
+
+/* 右側全体 */
+.task-bar.bar-relocate .task-right {
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1.0;              /* 少し詰める */
+}
+
+/* 共通行 */
+.task-bar.bar-relocate .relocate-row {
+  font-size: 11px;
+  line-height: 1.0;
+  margin: 0;
+  padding: 1px 0;
+  color: #333;
+}
+
+/* 1行目：移設元現場名 */
+.task-bar.bar-relocate .relocate-row-1 {
+  font-weight: 600;
+  font-size: 11px;
+  color: #2f6f3a;
+}
+
+/* 2行目：現場名 */
+.task-bar.bar-relocate .relocate-row-2 {
+  font-size: 10.5px;
+  color: #444;
+}
+
+/* 3行目：メモ */
+/* 移設バー：メモ行 */
+.task-bar.bar-relocate .relocate-row-3 {
+  font-size: 10px;
+  line-height: 1.0;
+  height: 13px;              /* ★ ここを最小に */
+  min-height: 14px !important;   /* ← ここ超重要 */
+  padding: 0 4px;            /* ★ 上下ゼロ */
+  margin: 0;                 /* ★ margin完全排除 */
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px dashed #cce6d3;
+  border-radius: 3px;
+}
+
+.task-bar.bar-relocate [contenteditable="true"] {
+  display: block;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+  line-height: 1.0 !important;
+}
+
+
+
+
+/* 1段目：現場名（主役） */
+.install-row-1,
+.collect-row-1 {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+/* 2段目：案件情報 */
+.install-row-2,
+.collect-row-2 {
+  font-size: 12px;
+  line-height: 1.15;
+  color: #444;
+}
+
+/* 3段目：回収現場など */
+.install-row-3,
+.collect-row-3 {
+  font-size: 12px;
+  line-height: 1.15;
+  color: #555;
+}
+
+.install-collect-memo:empty::before {
+  content: attr(data-placeholder);
+  color: #999;
+}
+
+/* ステータスボタン */
+.task-status-btn {
+  display: inline-flex;          /* ← flex にする */
+  align-items: center;           /* 縦中央 */
+  justify-content: center;       /* 横中央 */
+
+  width: 60px !important;
+  height: 46px !important;       /* ← +2px */
+  padding: 0 4px;
+
+  font-size: 12px !important;
+  font-weight: bold;
+
+  border-radius: 6px;
+  cursor: pointer;
+
+  line-height: 1;                /* ← 固定値やめる */
+  box-sizing: border-box;
+
+  transition: background-color 0.2s ease,
+              border-color 0.2s ease,
+              transform 0.1s ease;
+}
+
+
+.task-status-btn:hover {
+  background-color: #d8f0d8;      /* hover時：少し濃い */
+  border-color: #6fa66f;
+  transform: scale(1.05);
+}
+
+.task-status-btn:active {
+  background-color: #cde9cd;      /* 押下時：さらに濃い */
+  transform: scale(0.97);
+}
+
+
+
+
+/* プルダウン */
+.task-select {
+  height: 28px !important;
+  width: 60px !important;
+  font-size: 11px;
+  line-height: 32px;          /* ← ここ重要 */
+  border: 1px solid #a5cda5;
+  border-radius: 4px;
+  color: #333;
+  background-color: #ffffff;
+  margin: 4px 0;
+  padding: 2px 4px;
+  cursor: pointer;
+  text-align: left;           /* 全体の中央寄せ（Firefoxなど） */
+  text-align-last: left;      /* 最終的な選択テキストを中央に（Chrome対応） */
+  -moz-text-align-last: left; /* Firefox旧対応 */
+  transition: all 0.2s ease;
+}
+
+
+/* 担当者欄 */
+.task-assignee-select {
+  font-size: 11px;
+  text-align: center;
+  width: 80px !important;
+  align-self: center;
+  white-space: nowrap;
+}
+
+
+/* ==== ヘッダー全体ラッパー ==== */
+#calendar-header-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 950;
+  background: transparent;
+}
+
+/* ==== ヘッダー本体 ==== */
+#calendar-container-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid #ccc;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  position: relative;
+  width: 100%;
+  transition: opacity 0.3s ease, width 0.4s ease;
+}
+
+/* ==== 最小化時：ヘッダーを非表示 ==== */
+#calendar-container-header.minimized {
+  display: none;
+}
+
+/* ==== 最小化ボタン（通常時） ==== */
+#toggle-header {
+  background-color: #007BFF;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+#toggle-header:hover {
+  background-color: #0056b3;
+}
+
+/* ==== 浮遊ボタン（最小化時に残る） ==== */
+.floating-toggle {
+  position: fixed;
+  top: 17px;
+  left: 8px;
+  z-index: 9999;
+  background-color: #007BFF;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 12px 20px;  /* ← サイズUP */
+  font-size: 18px;     /* ← 文字大きめ */
+  font-weight: bold;   /* ← 少し強調 */
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: background-color 0.3s ease;
+}
+
+.floating-toggle:hover {
+  background-color: #0056b3;
+  transform: scale(1.05);  /* ← ホバー時に少し拡大 */
+}
+
+
+
+
+/* =================================================
+   🔧 移設バーだけを極限まで詰める（安全版）
+   ※ 既存CSSは一切触らない
+================================================= */
+
+/* バー全体 */
+.task-bar.bar-relocate {
+  padding-top: 2px !important;
+  padding-bottom: 4px !important;
+  min-height: 0 !important;
+}
+
+/* 右側ブロック */
+.task-bar.bar-relocate .task-right {
+  gap: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* 全行共通：余白殺し */
+.task-bar.bar-relocate .relocate-row {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.05 !important;
+}
+
+/* 移設バー 1行目：上切れ防止 */
+.task-bar.bar-relocate .relocate-row-1 {
+  padding-top: 4px !important;      /* ← これが効く */
+  line-height: 1.1 !important;      /* ← 1.0 はやりすぎ */
+}
+
+/* 移設バー：メモ行を少しだけ戻す */
+.task-bar.bar-relocate .relocate-row-3 {
+  height: 18px !important;
+  min-height: 18px !important;
+  padding: 0 4px 2px 4px !important; /* ← 下だけ余白 */
+  line-height: 1.1 !important;
+}
+
+
+/* contenteditable が持つ最小高さを無効化 */
+.task-bar.bar-relocate [contenteditable="true"] {
+  min-height: 16px !important;
+  padding-bottom: 2px !important;
+  line-height: 1.1 !important;
+}
+
+
+
+/* ======================================
+   メモ機能（設置概要）セル
+====================================== */
+.install-summary-cell {
+  padding: 4px;
+}
+
+/* 行全体 */
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+/* 入力3つをまとめる */
+.summary-inputs {
+  display: flex;
+  gap: 4px;
+}
+
+/* 右側ボタン専用カラム */
+.summary-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* 入力 */
+.summary-input {
+  width: 180px;
+  height: 28px;
+  font-size: 13px;
+  padding: 4px 6px;
+  cursor: pointer;
+  background-color: #f9f9f9;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+}
+
+/* ＋／− ボタン */
+.summary-row-actions .kintone-custom-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 18px;
+  font-weight: bold;
+  border-radius: 50%;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* − */
+.del-btn {
+  color: #dc2626;
+}
+.del-btn:hover {
+  background-color: #fee2e2;
+  border-color: #dc2626;
+}
+
+/* ＋ */
+.add-btn {
+  color: #007bff;
+}
+.add-btn:hover {
+  background-color: #e7f1ff;
+  border-color: #007bff;
+}
+
+/* ＋ボタンだけの行 */
+.summary-add-only {
+  margin: 2px 0;
+}
+
+/* ======================================
+   モーダル（オーバーレイ）
+====================================== */
+.summary-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ======================================
+   モーダル本体
+====================================== */
+.summary-modal {
+  background: #ffffff;
+  width: 440px;
+  padding: 18px 20px 16px;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+
+/* ======================================
+   ヘッダー（日付・タイトル）
+====================================== */
+.summary-modal-header {
+  margin-bottom: 10px;
+}
+
+.summary-modal-date {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.summary-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* ======================================
+   メモ入力（1行）
+====================================== */
+.summary-modal-text {
+  width: 100%;
+  height: 34px;
+  resize: none;
+  overflow: hidden;
+  font-size: 14px;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  outline: none;
+}
+
+.summary-modal-text:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.25);
+}
+
+/* ======================================
+   表示設定バー（文字色・太字）
+====================================== */
+.summary-style-bar {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.style-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.style-group.right {
+  margin-left: auto;
+}
+
+/* ラベル */
+.style-label {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+/* ボタン共通 */
+.style-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+/* 色・太字 共通ボタン */
+.style-btn {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  padding: 4px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.4;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.style-btn:hover {
+  background: #f3f4f6;
+}
+
+/* 選択中（色・太字共通） */
+.style-btn.selected {
+  border-color: #007bff;
+  background: #e7f1ff;
+  font-weight: 600;
+}
+
+/* 太字ボタン専用（見た目は同一） */
+.bold-btn {
+  font-weight: bold;
+}
+
+/* ======================================
+   アクションボタン
+====================================== */
+.summary-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.summary-btn {
+  padding: 6px 16px;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.summary-btn.primary {
+  background-color: #007bff;
+  border-color: #007bff;
+  color: #ffffff;
+}
+
+.summary-btn.primary:hover {
+  background-color: #0056b3;
+  border-color: #0056b3;
+}
+
+.summary-btn.cancel {
+  background-color: #f9fafb;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.summary-btn.cancel:hover {
+  background-color: #e5e7eb;
+}
+
+.summary-text-counter {
+  font-size: 12px;
+  color: #6b7280;
+  text-align: right;
+  margin-top: 4px;
+}

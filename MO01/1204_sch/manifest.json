@@ -1,0 +1,18 @@
+{
+  "app": "1204",
+  "scope": "ALL",
+  "desktop": {
+    "js": [
+      "cal_mob.js",
+      "commonSch.js",
+      "deliverySch.js"
+    ],
+    "css": [
+      "catTableDeli.css"
+    ]
+  },
+  "mobile": {
+    "js": [],
+    "css": []
+  }
+}

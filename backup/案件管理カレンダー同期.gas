@@ -1,0 +1,140 @@
+function doPost(e) {
+  try {
+    const TARGET_APP_ID = 1204; // スケジュール管理アプリ
+    const DOMAIN = 'mores-i.cybozu.com'; // ★自分のkintoneドメインに置き換え
+    // APIトークン（スケジュール管理用 + 得意先マスター用をカンマ区切り）
+    const API_TOKENS = 'p4yUj8qmqBKfzR276QN6x02SigJLXc0ocFn5jIQj,TF8KlhJwUbnAoG9EF8u2IVOhXn8sfNtEskSLzNQC';
+
+    // ===== Webhook受信ログ =====
+    Logger.log("=== Webhook受信 ===");
+    Logger.log(e.postData.contents);
+
+    const body = JSON.parse(e.postData.contents);
+    const record = body.record;
+
+    // --- デバッグ用 ---
+    Logger.log("案件No: " + record['案件No']?.value);
+    Logger.log("案件種別: " + record['案件種別']?.value);
+    Logger.log("得意先コード: " + record['得意先コード']?.value);
+
+    // ===== 処理スキップ条件 =====
+    const skipTypes = ["レンタル延長", "買取(レンタル使用)プラン", "レンタル家具買取"];
+    if (skipTypes.includes(record['案件種別']?.value)) {
+      Logger.log("対象案件種別のため処理スキップ: " + record['案件種別']?.value);
+      return ContentService.createTextOutput("skip");
+    }
+
+    // ===== メインフィールド作成 =====
+    const mainFields = {
+      '案件番号': record['案件No']?.value || '',
+      '案件種別': record['案件種別']?.value || '',
+      '営業担当': record['営業担当']?.value || '',
+      '現場名': record['bukenmei']?.value || '',
+      '得意先コード': record['得意先コード']?.value || '',
+      '得意先名': record['得意先名']?.value || '',
+      '現場名略称': record['bukenmei']?.value?.substring(0, 20) || '',
+      '得意先略称': record['得意先略称']?.value?.substring(0, 4) || ''
+    };
+
+    const baseDate = (field) => field?.value ? new Date(field.value) : null;
+    const formatDate = (date) => date ? date.toISOString().split('T')[0] : '';
+
+    var tasks = [
+      {
+        name: '1：現調',
+        date: (function () {
+          if (record['現調日'] && record['現調日'].value) {
+            return baseDate(record['現調日']);
+          }
+          var d = baseDate(record['設置予定日']);
+          if (d) {
+            d.setDate(d.getDate() - 10);
+            return d;
+          }
+          return null;
+        })()
+      },
+      {
+        name: '2：プラン作成',
+        date: (function () {
+          if (record['プラン作成日'] && record['プラン作成日'].value) {
+            return baseDate(record['プラン作成日']);
+          }
+          var d = baseDate(record['設置予定日']);
+          if (d) {
+            d.setDate(d.getDate() - 5);
+            return d;
+          }
+          return null;
+        })()
+      },
+      {
+        name: '3：設置予定',
+        date: baseDate(record['設置予定日'])
+      },
+      {
+        name: '4：撮影',
+        date: (function () {
+          if (record['撮影日'] && record['撮影日'].value) {
+            return baseDate(record['撮影日']); // 撮影日優先
+          }
+          var d = baseDate(record['設置予定日']);
+          if (d) {
+            d.setDate(d.getDate() + 1);
+            return d;
+          }
+          return null;
+        })()
+      }
+    ];
+
+    const taskEntries = tasks.filter(t => t.date).map(task => ({
+      value: {
+        '日付': { value: formatDate(task.date) },
+        'タスク': { value: task.name },
+        'ステータス': { value: '調整中' }
+      }
+    }));
+
+    // ===== 既存レコード検索 =====
+    const query = `案件番号 = "${mainFields['案件番号']}"`;
+    const targetRecords = kintoneGetRecords(TARGET_APP_ID, query, API_TOKENS, DOMAIN);
+    Logger.log("既存検索結果: " + JSON.stringify(targetRecords));
+
+    // ===== Insert or Update =====
+    if (targetRecords.length > 0) {
+      const recordId = targetRecords[0].$id.value;
+      const payloadPut = {
+        app: TARGET_APP_ID,
+        id: recordId,
+        record: {
+          ...Object.fromEntries(
+            Object.entries(mainFields).map(([k, v]) => [k, { value: v }])
+          )
+        }
+      };
+      Logger.log("payloadPut: " + JSON.stringify(payloadPut, null, 2));
+      const resp = kintonePutRecord(payloadPut, API_TOKENS, DOMAIN);
+      Logger.log("既存レコード更新レスポンス: " + resp);
+    } else {
+      const payloadPost = {
+        app: TARGET_APP_ID,
+        record: {
+          ...Object.fromEntries(
+            Object.entries(mainFields).map(([k, v]) => [k, { value: v }])
+          ),
+          'タスク管理': { value: taskEntries }
+        }
+      };
+      Logger.log("payloadPost: " + JSON.stringify(payloadPost, null, 2));
+      const resp = kintonePostRecord(payloadPost, API_TOKENS, DOMAIN);
+      Logger.log("新規レコード作成レスポンス: " + resp);
+    }
+
+    return ContentService.createTextOutput("success");
+
+  } catch (err) {
+    Logger.log("エラー: " + err.message + "\n" + err.stack);
+    return ContentService.createTextOutput("error");
+  }
+}

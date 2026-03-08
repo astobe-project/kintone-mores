@@ -1917,8 +1917,8 @@ async function updateSelfRecord(recordId, subId, selectedValue) {
           document.getElementById('reload-page').addEventListener('click', async () => {
               location.reload();
           });
-          document.getElementById('scroll-today').addEventListener('click', () => {
-            scrollToToday();
+          document.getElementById('scroll-today').addEventListener('click', async () => {
+            await scrollToToday();
           });
           window._calendarNavBound = true;
         }
@@ -2552,12 +2552,23 @@ async function fetchAllRecords(year, month) {
 /**
  * 本日の日付までスムーズにスクロール
  */
-function scrollToToday() {
+async function scrollToToday() {
   const today = new Date();
   const todayISO = today.toISOString().split('T')[0];
 
   // 今日の日付に対応する行を探す
-  const todayRow = document.querySelector(`tr td[data-date="${todayISO}"]`);
+  let todayRow = document.querySelector(`tr td[data-date="${todayISO}"]`);
+
+  if (!todayRow) {
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+
+    window._calendarCurrentYear = todayYear;
+    window._calendarCurrentMonth = todayMonth;
+    await updateCalendarDel(todayYear, todayMonth);
+
+    todayRow = document.querySelector(`tr td[data-date="${todayISO}"]`);
+  }
 
   if (todayRow) {
     todayRow.scrollIntoView({

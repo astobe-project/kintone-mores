@@ -98,6 +98,87 @@
               }
             });
           }
+          const planNoRental = record['プランNo_ﾚﾝﾀﾙ']?.value;
+          const sourceGenbaName = record['bukenmei']?.value || '';
+
+          if (planNoRental && sourceGenbaName) {
+            const planResp = await kintone.api(
+              kintone.api.url('/k/v1/records', true),
+              'GET',
+              {
+                app: 1142,
+                query: `プラン_NO = "${planNoRental}"`,
+                fields: ['案件No']
+              }
+            );
+
+            const linkedCaseNo = planResp.records[0]?.['案件No']?.value || '';
+
+            if (linkedCaseNo) {
+              const collectField = '回収元現場名';
+              const collectRespFixed = await kintone.api(
+                kintone.api.url('/k/v1/records', true),
+                'GET',
+                {
+                  app: TARGET_APP_ID,
+                  query: `${FIELD_NO} = "${linkedCaseNo}"`,
+                  fields: ['$id', collectField]
+                }
+              );
+
+              if (collectRespFixed.records.length > 0) {
+                const collectTargetFixed = collectRespFixed.records[0];
+                const currentCollectFromFixed =
+                  collectTargetFixed[collectField]?.value || '';
+
+                if (currentCollectFromFixed !== sourceGenbaName) {
+                  await kintone.api(
+                    kintone.api.url('/k/v1/record', true),
+                    'PUT',
+                    {
+                      app: TARGET_APP_ID,
+                      id: collectTargetFixed.$id.value,
+                      record: {
+                        [collectField]: { value: sourceGenbaName }
+                      }
+                    }
+                  );
+                }
+              }
+
+              if (false) {
+              const collectResp = await kintone.api(
+                kintone.api.url('/k/v1/records', true),
+                'GET',
+                {
+                  app: TARGET_APP_ID,
+                  query: `${FIELD_NO} = "${linkedCaseNo}"`,
+                  fields: ['$id', '回収先・現場名']
+                }
+              );
+
+              if (collectResp.records.length > 0) {
+                const collectTarget = collectResp.records[0];
+                const currentCollectFrom =
+                  collectTarget['回収先・現場名']?.value || '';
+
+                if (currentCollectFrom !== sourceGenbaName) {
+                  await kintone.api(
+                    kintone.api.url('/k/v1/record', true),
+                    'PUT',
+                    {
+                      app: TARGET_APP_ID,
+                      id: collectTarget.$id.value,
+                      record: {
+                        '回収先・現場名': { value: sourceGenbaName }
+                      }
+                    }
+                  );
+                }
+              }
+              }
+            }
+          }
 
           if (getResp.records.length > 0) {
             // 更新

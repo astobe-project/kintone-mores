@@ -166,6 +166,48 @@ body {
     white-space: nowrap;
 }
 
+.calendar-table2 th.task,
+.calendar-table2 td.calendar-cell {
+    width: 320px;
+    min-width: 320px;
+    max-width: 320px;
+}
+
+.calendar-table2 th:nth-child(2),
+.calendar-table2 td:nth-child(2),
+.calendar-table2 th:nth-child(3),
+.calendar-table2 td:nth-child(3),
+.calendar-table2 th:nth-child(4),
+.calendar-table2 td:nth-child(4) {
+    width: 320px;
+    min-width: 320px;
+    max-width: 320px;
+}
+
+.calendar-table2 th:nth-child(6),
+.calendar-table2 td:nth-child(6),
+.calendar-table2 th:nth-child(7),
+.calendar-table2 td:nth-child(7) {
+    width: 620px;
+    min-width: 620px;
+    max-width: 620px;
+}
+
+.calendar-table2 th:nth-child(8),
+.calendar-table2 td:nth-child(8),
+.calendar-table2 th:nth-child(9),
+.calendar-table2 td:nth-child(9),
+.calendar-table2 th:nth-child(10),
+.calendar-table2 td:nth-child(10),
+.calendar-table2 th:nth-child(11),
+.calendar-table2 td:nth-child(11),
+.calendar-table2 th:nth-child(12),
+.calendar-table2 td:nth-child(12) {
+    width: 360px;
+    min-width: 360px;
+    max-width: 360px;
+}
+
 .calendar-table2 tbody td.dateindex {
     position: sticky;
     left: 0px;
@@ -342,7 +384,9 @@ body {
     color: #fff;
     padding: 5px;
     border-radius: 4px;
-    white-space: normal;
+    white-space: nowrap;
+    width: max-content;
+    max-width: none;
 /*    z-index: 1000; */
     opacity: 0.9;
     text-align: left;
@@ -351,6 +395,7 @@ body {
 .custom-tooltip {
     background-color: #fff9c4; /* パステルイエロー */
     color: #333;
+    display: inline-block;
     padding: 6px 10px;
     font-size: 12px;
     border: none; /* 👈 境界線を消すポイント */
@@ -358,6 +403,8 @@ body {
     border: 1px solid #999;
     z-index: 999;
     white-space: nowrap;
+    width: max-content;
+    max-width: none;
     box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
     pointer-events: none;
 }

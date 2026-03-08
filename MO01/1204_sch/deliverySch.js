@@ -16,6 +16,172 @@ console.log = function (...args) {
   return originalConsoleLog.apply(console, args);
 };
 
+const update1145_flg = 1;
+const update1214_flg = 1;
+const LINKED_APP_1214 = 1214;
+const FIELD_CASE_NO = '案件No';
+const FIELD_CASE_NUMBER = '案件番号';
+const FIELD_STATUS = '案件ステータス';
+const FIELD_INSTALL_COMPLETE_DATE = '設置完了日';
+const FIELD_DELIVERY_COMPANY = '運送会社';
+const FIELD_ORDER = '順番';
+const FIELD_DETAIL = '詳細';
+const FIELD_TASK_GROUP = 'タスクG';
+const FIELD_DATE = '日付';
+const FIELD_DELIVERY_NO = '運送番号';
+const INTERNAL_STATUS_ADJUSTING = '調整中';
+const INTERNAL_STATUS_CONFIRMED = '確定';
+const INTERNAL_STATUS_COMPLETED = '完了';
+const STATUS_1145_ORDERED = '受注_設置日未定(発注等)';
+const STATUS_1145_CONFIRMED = '設置_設置日確定';
+const STATUS_1145_COMPLETED = '完了_撮影済/編集未';
+
+function escapeKintoneQueryValue(value) {
+  return String(value ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function buildInQuery(fieldName, values) {
+  const filtered = [...new Set((values || []).map(v => String(v || '').trim()).filter(Boolean))];
+  if (filtered.length === 0) return '';
+  return `${fieldName} in ("${filtered.map(escapeKintoneQueryValue).join('","')}")`;
+}
+
+async function fetchRecordIdsByKey(appId, keyField, keys) {
+  const query = buildInQuery(keyField, keys);
+  if (!query) return new Map();
+
+  const resp = await kintone.api(kintone.api.url('/k/v1/records', true), 'GET', {
+    app: appId,
+    query,
+    fields: ['$id', keyField]
+  });
+
+  const idMap = new Map();
+  resp.records.forEach(record => {
+    const key = record?.[keyField]?.value || '';
+    const id = record?.$id?.value || '';
+    if (key && id) {
+      idMap.set(String(key), id);
+    }
+  });
+  return idMap;
+}
+
+async function bulkUpdateByKey(appId, keyField, recordsByKey) {
+  const entries = Object.entries(recordsByKey || {}).filter(([key, record]) => key && record);
+  if (entries.length === 0) return;
+
+  const idMap = await fetchRecordIdsByKey(appId, keyField, entries.map(([key]) => key));
+  const records = entries
+    .map(([key, record]) => {
+      const id = idMap.get(String(key));
+      if (!id) return null;
+      return { id, record };
+    })
+    .filter(Boolean);
+
+  if (records.length === 0) return;
+
+  await kintone.api(kintone.api.url('/k/v1/records', true), 'PUT', {
+    app: appId,
+    records
+  });
+}
+
+function map1145StatusFromInternal(status) {
+  if (status === INTERNAL_STATUS_ADJUSTING) return STATUS_1145_ORDERED;
+  if (status === INTERNAL_STATUS_CONFIRMED) return STATUS_1145_CONFIRMED;
+  if (status === INTERNAL_STATUS_COMPLETED) return STATUS_1145_COMPLETED;
+  return '';
+}
+
+async function sync1145StatusForTasks(taskElements, newStatus, targetDate) {
+  if (update1145_flg !== 1) return;
+
+  const mappedStatus = map1145StatusFromInternal(newStatus);
+  if (!mappedStatus) return;
+
+  const recordsByKey = {};
+  (taskElements || []).forEach(taskEl => {
+    const caseNo = String(taskEl?.dataset?.caseNumber || '').trim();
+    if (!caseNo) return;
+
+    const record = {
+      [FIELD_STATUS]: { value: mappedStatus }
+    };
+    if (newStatus === INTERNAL_STATUS_COMPLETED && targetDate) {
+      record[FIELD_INSTALL_COMPLETE_DATE] = { value: targetDate };
+    }
+    recordsByKey[caseNo] = record;
+  });
+
+  await bulkUpdateByKey(APP_IDS.PROJECT_MGMT, FIELD_CASE_NO, recordsByKey);
+}
+
+function getSlotNumberFromCell(cell) {
+  const slotNumberMap = {
+    'task-1st': 1,
+    'task-2nd': 2,
+    'task-3rd': 3,
+    'task-4th': 4,
+    'task-5th': 5
+  };
+  return slotNumberMap[cell?.id] || 0;
+}
+
+async function getDeliveryCompanyForCell(cell) {
+  const date = cell?.dataset?.date || '';
+  const slotNumber = getSlotNumberFromCell(cell);
+  const fallbackValue = cell?.querySelector('select')?.value?.trim() || '';
+  if (!date || !slotNumber) return fallbackValue;
+
+  try {
+    const resp = await kintone.api(kintone.api.url('/k/v1/records', true), 'GET', {
+      app: APP_IDS.DELIVERY,
+      query: `${FIELD_DATE} = "${escapeKintoneQueryValue(date)}" and ${FIELD_DELIVERY_NO} in ("${slotNumber}")`,
+      fields: [FIELD_DELIVERY_COMPANY]
+    });
+    return resp.records[0]?.[FIELD_DELIVERY_COMPANY]?.value || fallbackValue;
+  } catch (error) {
+    console.error('linked delivery fetch failed', error);
+    return fallbackValue;
+  }
+}
+
+function buildLinkedSyncRecordsForCell(cell, deliveryCompany) {
+  const recordsByKey = {};
+  Array.from(cell?.querySelectorAll('.task-bar') || []).forEach(taskEl => {
+    const caseNo = String(taskEl.dataset.caseNumber || '').trim();
+    if (!caseNo) return;
+    recordsByKey[caseNo] = {
+      [FIELD_DELIVERY_COMPANY]: { value: deliveryCompany || '' },
+      [FIELD_ORDER]: { value: String(taskEl.dataset.order || '').trim() },
+      [FIELD_DETAIL]: { value: String(taskEl.dataset.taskGroup || '').trim() }
+    };
+  });
+  return recordsByKey;
+}
+
+async function syncLinkedAppsForCell(cell) {
+  try {
+    const recordsByKey = buildLinkedSyncRecordsForCell(cell, await getDeliveryCompanyForCell(cell));
+    const jobs = [];
+
+    if (update1145_flg === 1) {
+      jobs.push(bulkUpdateByKey(APP_IDS.PROJECT_MGMT, FIELD_CASE_NO, recordsByKey));
+    }
+    if (update1214_flg === 1) {
+      jobs.push(bulkUpdateByKey(LINKED_APP_1214, FIELD_CASE_NO, recordsByKey));
+    }
+
+    if (jobs.length > 0) {
+      await Promise.all(jobs);
+    }
+  } catch (error) {
+    console.error('linked app sync failed', error);
+  }
+}
+
 
 /**
  * 初期化処理（アプリ起動時に1回だけ実行）
@@ -24,21 +190,21 @@ async function initApp() {
     // 各選択肢を並行して取得（Promise.all を使用）
     await Promise.all([
         fetchFieldOptions("タスクG_list"),
-        fetchFieldOptions("配送業者"),
+        fetchFieldOptions("運送会社"),
         fetchFieldOptions("作業担当")
     ]);
 }
 
 /**
  * 指定されたフィールドの選択肢を取得（キャッシュ対応）
- * @param {string} fieldName - フィールド名（例: 'タスクG', '配送業者', '担当者'）
+ * @param {string} fieldName - フィールド名（例: 'タスクG', '運送会社', '担当者'）
  * @returns {Promise<Array>} 選択肢の配列
  */
 async function fetchFieldOptions(fieldName) {
     console.log(`Fetching field options for: ${fieldName}`);  // デバッグ用ログ
     // 既にキャッシュがあればそれを返す
     if (fieldName === "タスクG_list" && taskGOptionsCache) return taskGOptionsCache;
-    if (fieldName === "配送業者" && deliveryOptionsCache) return deliveryOptionsCache;
+    if (fieldName === "運送会社" && deliveryOptionsCache) return deliveryOptionsCache;
     if (fieldName === "作業担当" && assignedOptionsCache) return assignedOptionsCache;
 
     try {
@@ -48,7 +214,7 @@ async function fetchFieldOptions(fieldName) {
             const options = Object.keys(response.properties[fieldName].options).sort();
             // キャッシュに保存
             if (fieldName === "タスクG_list") taskGOptionsCache = options;
-            if (fieldName === "配送業者") deliveryOptionsCache = options;
+            if (fieldName === "運送会社") deliveryOptionsCache = options;
             if (fieldName === "作業担当") assignedOptionsCache = options;
 
             return options;
@@ -61,7 +227,7 @@ async function fetchFieldOptions(fieldName) {
 async function initApp() {
     await Promise.all([
         fetchFieldOptions('タスクG'),
-        fetchFieldOptions('配送業者'),
+        fetchFieldOptions('運送会社'),
         fetchFieldOptions('作業担当')
     ]);
 }
@@ -71,14 +237,15 @@ async function fetchFieldOptions(fieldName) {
 
     // キャッシュがある場合はそれを返す
     if (fieldName === 'タスクG' && taskGOptionsCache) return taskGOptionsCache;
-    if (fieldName === '配送業者' && deliveryOptionsCache) return deliveryOptionsCache;
+    if (fieldName === '運送会社' && deliveryOptionsCache) return deliveryOptionsCache;
     if (fieldName === '作業担当' && assignedOptionsCache) return assignedOptionsCache;
 
     try {
+        const fieldSourceAppId = fieldName === '運送会社' ? 1214 : kintone.app.getId();
         const response = await kintone.api(
             kintone.api.url('/k/v1/app/form/fields', true),
             'GET',
-            { app: kintone.app.getId() }
+            { app: fieldSourceAppId }
         );
 
         let fieldDef = response.properties?.[fieldName];
@@ -99,9 +266,14 @@ async function fetchFieldOptions(fieldName) {
         }
 
         // 選択肢をソートしてキャッシュに保存
-        const options = Object.keys(fieldDef.options).sort();
+        let options = Object.entries(fieldDef.options)
+            .sort(([, a], [, b]) => Number(a.index || 0) - Number(b.index || 0))
+            .map(([label]) => label);
+        if (fieldName === '運送会社') {
+            options = options.filter(option => option !== '未定');
+        }
         if (fieldName === 'タスクG') taskGOptionsCache = options;
-        if (fieldName === '配送業者') deliveryOptionsCache = options;
+        if (fieldName === '運送会社') deliveryOptionsCache = options;
         if (fieldName === '作業担当') assignedOptionsCache = options;
         
         return options;
@@ -548,6 +720,16 @@ const tooltipCaseNumber   = getTooltipValue('案件番号', '不明');
 <div>備考：${escapeHtml(tooltipBiko)}</div>`;
 
   tooltip.innerHTML = `<div>得意先名：${escapeHtml(tooltipCustomerName)}</div><div>----------------------------------------</div><div>案件番号：${escapeHtml(tooltipCaseNumber)}</div><div>案件種別：${escapeHtml(tooltipCaseType)}</div><div>順番：${escapeHtml(tooltipTaskNo)}</div><div>現場名：${escapeHtml(tooltipGenbaName)}</div><div>状況：${escapeHtml(tooltipStatus)}</div><div>メモ：${escapeHtml(tooltipMemo)}</div><div>備考：${escapeHtml(tooltipBiko)}</div>`;
+  tooltip.innerHTML = buildOrderedTooltipHtml({
+    customerName: tooltipCustomerName,
+    caseNumber: tooltipCaseNumber,
+    caseType: tooltipCaseType,
+    taskNo: tooltipTaskNo,
+    genbaName: tooltipGenbaName,
+    status: tooltipStatus,
+    memo: tooltipMemo,
+    biko: tooltipBiko
+  });
   document.body.appendChild(tooltip);
 
   // =========================
@@ -684,6 +866,16 @@ async function createTaskBar(record, type) {
     taskEl.dataset.date = iso;
   }
   // ===== 3) 右側（表示エリア） =====
+  taskEl.dataset.caseNumber = task['案件番号'] || '';
+  taskEl.dataset.order = String(task['表示順'] || '').trim();
+  taskEl.dataset.taskGroup = task[FIELD_TASK_GROUP] || '';
+
+  taskEl.dataset.customerName = task['得意先名'] || '';
+  taskEl.dataset.caseType = task['案件種別'] || '';
+  taskEl.dataset.genbaName = task['現場名'] || '';
+  taskEl.dataset.memo = task['テキストメモ'] || '';
+  taskEl.dataset.biko = task['備考'] || '';
+
   let rightDiv = document.createElement('div');
   if (barMode === 'install') {
     // --- 設置バー（4段） ---
@@ -712,7 +904,7 @@ async function createTaskBar(record, type) {
       installRow3.textContent = collectFromText;
     }
     if (installRow3 && !installRow3.textContent.trim()) {
-      installRow3.innerHTML = '<span class="collect-from-placeholder">\u4e8b\u52d9\u6240</span>';
+      installRow3.innerHTML = '<span class="collect-from-placeholder">事務所</span>';
     }
   } else if (barMode === 'collect') {
     // --- 回収バー（3段） ---
@@ -768,6 +960,11 @@ async function createTaskBar(record, type) {
     const btn = buildStatusButtonForB(task, taskEl);
     if (btn) leftDiv.appendChild(btn);
 
+    const prepSelect = buildPrepStatusSelect(task, taskEl);
+    if (prepSelect) leftDiv.appendChild(prepSelect);
+  }
+
+  if (barMode === 'relocate') {
     const prepSelect = buildPrepStatusSelect(task, taskEl);
     if (prepSelect) leftDiv.appendChild(prepSelect);
   }
@@ -909,6 +1106,7 @@ function buildPrepStatusSelect(record, taskEl) {
         }
       });
       console.log(`✅ 準備状況を更新: ${newValue}`);
+      taskEl.dataset.taskGroup = newValue;
     } catch (err) {
       console.error('🚨 準備状況更新失敗:', err);
       alert('準備状況の更新に失敗しました。');
@@ -1051,6 +1249,7 @@ function toggleStatus(btn) {
 // === ステータスボタン①（3：設置予定）===
 //
 async function toggleStatusBtnB1(buttonEl, recordId) {
+  const taskEl = buttonEl.closest('.task-bar');
   const currentLabel = buttonEl.textContent.trim();
   let newStatus, newLabel, bgColor, borderColor;
 
@@ -1095,6 +1294,10 @@ async function toggleStatusBtnB1(buttonEl, recordId) {
     buttonEl.style.transition = 'background-color 0.3s ease, border-color 0.3s ease';
 
     console.log(`✅ 全サブ行を ${newStatus} に更新完了 (border=${borderColor})`);
+    if (taskEl && newStatus === INTERNAL_STATUS_ADJUSTING) {
+      taskEl.dataset.status = newStatus;
+      await sync1145StatusForTasks([taskEl], newStatus, taskEl.dataset.date || '');
+    }
   } catch (e) {
     console.error('🚨 [ボタン①更新失敗]', e);
     alert('更新に失敗しました');
@@ -1175,6 +1378,9 @@ async function toggleStatusBtnB2(btn, recordId, subId) {
     btn.style.border = `2px solid ${border}`;
     btn.style.color = '#333';
     btn.style.fontWeight = 'bold';
+    if (currentStatus !== INTERNAL_STATUS_COMPLETED) {
+      await sync1145StatusForTasks([taskEl], newStatus, targetDate);
+    }
 
   } catch (err) {
     console.error('🚨 toggleStatusBtnB2 error', err);
@@ -1208,6 +1414,70 @@ function displaytooltip(taskElement, tooltip) {
 
   taskElement.addEventListener('mouseout', () => {
     tooltip.style.display = 'none';
+  });
+}
+
+function hideTooltipsForRecord(recordId) {
+  const tooltips = Array.from(document.querySelectorAll('.tooltip'));
+  tooltips.forEach(tooltip => {
+    if (!recordId || tooltip.dataset.recordId === String(recordId)) {
+      tooltip.style.display = 'none';
+    }
+  });
+}
+
+function buildTooltipHtml(data) {
+  return `<div>${escapeHtml(data.customerName || '')}</div>` +
+`<div>----------------------------------------</div>` +
+    `<div>案件番号：${escapeHtml(data.caseNumber || '')}</div>` +
+    `<div>案件種別：${escapeHtml(data.caseType || '')}</div>` +
+    `<div>順番：${escapeHtml(data.taskNo || '')}</div>` +
+    `<div>現場名：${escapeHtml(data.genbaName || '')}</div>` +
+    `<div>状況：${escapeHtml(data.status || '')}</div>` +
+    `<div>メモ：${escapeHtml(data.memo || '')}</div>` +
+    `<div>備考：${escapeHtml(data.biko || '')}</div>`;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildOrderedTooltipHtml(data) {
+  const body = buildTooltipHtml(data).replace(
+    /^<div>.*?<\/div><div>----------------------------------------<\/div>/,
+    ''
+  );
+  const genbaName = escapeHtml(data.genbaName || '');
+  const genbaLinePattern = new RegExp(`<div>[^<]*${escapeRegExp(genbaName)}<\\/div>`);
+  const bodyWithoutGenba = body.replace(genbaLinePattern, '');
+  return `<div>${genbaName}</div>` +
+    `<div>${escapeHtml(data.customerName || '')}</div>` +
+    `<div>----------------------------------------</div>` +
+    bodyWithoutGenba;
+}
+
+function createTooltipElement(taskEl, tooltipData) {
+  const tooltip = document.createElement('div');
+  tooltip.className = 'tooltip';
+  tooltip.style.zIndex = 10000;
+  tooltip.dataset.recordId = taskEl.dataset.recordId || '';
+  tooltip.innerHTML = buildOrderedTooltipHtml(tooltipData);
+  document.body.appendChild(tooltip);
+  displaytooltip(taskEl, tooltip);
+  taskEl._tooltipBound = true;
+}
+
+function attachTooltipToTaskElement(taskEl) {
+  if (!taskEl || taskEl._tooltipBound) return;
+  createTooltipElement(taskEl, {
+    customerName: taskEl.dataset.customerName || '',
+    caseNumber: taskEl.dataset.caseNumber || '',
+    caseType: taskEl.dataset.caseType || '',
+    taskNo: taskEl.dataset.order || '',
+    genbaName: taskEl.dataset.genbaName || '',
+    status: taskEl.dataset.status || '',
+    memo: taskEl.dataset.memo || '',
+    biko: taskEl.dataset.biko || ''
   });
 }
 
@@ -1293,7 +1563,7 @@ async function fetchAndPopulateCells(year, month, containerId, callback) {
         const body = {
             app: APP_IDS.DELIVERY,
             query: query,
-            fields: ["日付", "配送番号", "配送業者", "メモ", "$id"]
+            fields: ["日付", "運送番号", "運送会社", "メモ", "$id"]
         };
 
         console.log("[DEBUG] Kintone API へリクエスト送信 (App ID:APP_IDS.DELIVERY)", body);
@@ -1341,9 +1611,9 @@ function populateCalendarCells(recordMap, recordMap2, year, month, containerId) 
     for (let day = 1; day <= totalDay; day++) {
         const isoDate = formatDateToLocalISO(new Date(year, month, day));
 
-        // ** 配送業者の処理 (recordMap) **
+        // ** 運送会社の処理 (recordMap) **
         const recordsForDate = (recordMap.get(isoDate) || []).sort((a, b) => 
-            parseInt(a["配送番号"].value || "0") - parseInt(b["配送番号"].value || "0")
+            parseInt(a["運送番号"].value || "0") - parseInt(b["運送番号"].value || "0")
         );
 
         document.querySelectorAll(`.calendar-cell[data-date="${isoDate}"]`).forEach((cell, index) => {
@@ -1357,10 +1627,10 @@ function populateCalendarCells(recordMap, recordMap2, year, month, containerId) 
                 };
                 const slotNumber = slotNumberMap[cell.id] || 0;
                 const record = recordsForDate.find(record => {
-                    const deliveryNo = parseInt(record["配送番号"].value, 10);
-                    return deliveryNo === slotNumber || deliveryNo === slotNumber + 6;
+                    const deliveryNo = parseInt(record["運送番号"].value, 10);
+                    return deliveryNo === slotNumber;
                 });
-                populateDropdown(cell, record ? record["配送業者"].value : "", record, isoDate, slotNumber);
+                populateDropdown(cell, record ? record["運送会社"].value : "", record, isoDate, slotNumber);
             }
         });
     }
@@ -1388,7 +1658,7 @@ function createTaskElement(task) {
 
 
 // ==========================================
-// 配送業者プルダウン、一括ボタン、メモ欄の生成
+// 運送会社プルダウン、一括ボタン、メモ欄の生成
 // ==========================================
 function populateDropdown(cell, existingValue = "", record, date, column) {
     cell.innerHTML = ""; 
@@ -1429,13 +1699,14 @@ function populateDropdown(cell, existingValue = "", record, date, column) {
         if (label === '一括確定') {
             if (!confirm(`「${targetKind}」をすべて「確定」にしますか？`)) return;
             await applyStatusBulk(tasks, '確定', date);
+            await sync1145StatusForTasks(tasks, INTERNAL_STATUS_CONFIRMED, date);
 //            if (record) await updatePdownRecordStatus(record["$id"].value, '確定');
         } else if (label === '一括完了') {
             if (!confirm(`「${targetKind}」をすべて「完了」にしますか？\n(別アプリ1145も自動更新されます)`)) return;
             // 1. 自アプリの一括完了
             await applyStatusBulk(tasks, '完了', date);
+            await sync1145StatusForTasks(tasks, INTERNAL_STATUS_COMPLETED, date);
             // 2. 別アプリ1145の自動更新
-debugger;            
 //            await updateApp1145Bulk(tasks, date);
 //            if (record) await updatePdownRecordStatus(record["$id"].value, '完了');
         }
@@ -1620,7 +1891,7 @@ function updatePdownRecord(recordId, selectedValue) {
         app: APP_IDS.DELIVERY,
         id: recordId,
         record: {
-            "配送業者": { "value": selectedValue }
+            "運送会社": { "value": selectedValue }
         }
     };
 
@@ -1656,8 +1927,8 @@ function createRecord(appId, date, column, selectedValue, newMemo) {
         record: {
             "日付": { "value": date },
             "メモ": { "value": newMemo },
-            "配送番号": { "value": column.toString() },
-            "配送業者": { "value": selectedValue }
+            "運送番号": { "value": column.toString() },
+            "運送会社": { "value": selectedValue }
         }
     };
     kintoneApiWrapper(kintone.api.url('/k/v1/record.json', true), 'POST', createBody, () => {
@@ -1674,7 +1945,7 @@ function updatePdownRecord(recordId, selectedValue) {
         app: APP_IDS.DELIVERY,
         id: recordId,
         record: {
-            "配送業者": { value: selectedValue || "" }
+            "運送会社": { value: selectedValue || "" }
         }
     };
 
@@ -1686,7 +1957,7 @@ function updatePdownRecordMemo(taskId, selectedValue, memoValue) {
         app: APP_IDS.DELIVERY,
         id: taskId,
         record: {
-            "配送業者": { value: selectedValue || "" },
+            "運送会社": { value: selectedValue || "" },
             "メモ": { value: memoValue || "" }
         }
     };
@@ -1818,51 +2089,11 @@ function loadSortableJS(callback) {
 
 
 /**
- * 自レコードのサブテーブルに配送業者を反映
+ * 自レコードのサブテーブルに運送会社を反映
  * @param {string} recordId - メインレコードID
  * @param {string} subId - サブテーブル行ID
- * @param {string} selectedValue - 配送業者の値
+ * @param {string} selectedValue - 運送会社の値
  */
-async function updateSelfRecord(recordId, subId, selectedValue) {
-    try {
-        // 元レコードを取得
-        const getResp = await kintone.api(kintone.api.url('/k/v1/record', true), 'GET', {
-            app: kintone.app.getId(),
-            id: recordId
-        });
-
-        const record = getResp.record;
-        const subTable = record["タスク管理"].value;
-
-        // 対象の subId を探して配送業者フィールドを更新
-        const updatedSubTable = subTable.map(row => {
-            if (row.id === subId) {
-                row.value["配送業者_0"].value = selectedValue || "";
-            }
-            return row;
-        });
-
-        // レコード更新
-        const putBody = {
-            app: kintone.app.getId(),
-            id: recordId,
-            record: {
-                "タスク管理": {
-                    value: updatedSubTable.map(row => ({
-                        id: row.id,
-                        value: row.value
-                    }))
-                }
-            }
-        };
-
-        await kintone.api(kintone.api.url('/k/v1/record', true), 'PUT', putBody);
-        console.log(`✅ 自レコード更新: RecordID=${recordId}, SubID=${subId}, 配送業者=${selectedValue}`);
-    } catch (error) {
-        console.error("🚨 自レコード更新に失敗:", error);
-    }
-}
- 
 (function() {
 'use strict';
 
@@ -2170,7 +2401,7 @@ async function updateCalendarDel(year, month) {
                 const selectedDelivery = deliverySelect?.value?.trim() || '';
                 if (!selectedDelivery) {
                   try { evt.from?.appendChild(taskEl); } catch (_) {}
-                  alert('タスクを移動する前に配送会社を決めてください');
+                  alert('タスクを移動する前に運送会社を決めてください');
                   return;
                 }
                 const prevStatus = taskEl.dataset.status || '未受注';
@@ -2194,11 +2425,28 @@ async function updateCalendarDel(year, month) {
                 newTaskEl.dataset.taskKind = toKind;
                 newTaskEl.dataset.status   = prevStatus;
                 newTaskEl.dataset.date     = targetDate;
-              
+                newTaskEl.dataset.caseNumber = taskEl.dataset.caseNumber || '';
+                newTaskEl.dataset.taskGroup = taskEl.dataset.taskGroup || '';
+                newTaskEl.dataset.customerName = taskEl.dataset.customerName || '';
+                newTaskEl.dataset.caseType = taskEl.dataset.caseType || '';
+                newTaskEl.dataset.genbaName = taskEl.dataset.genbaName || '';
+                newTaskEl.dataset.memo = taskEl.dataset.memo || '';
+                newTaskEl.dataset.biko = taskEl.dataset.biko || '';
+                attachTooltipToTaskElement(newTaskEl);
+                newTaskEl.dataset.caseNumber = taskEl.dataset.caseNumber || '';
+                newTaskEl.dataset.taskGroup = taskEl.dataset.taskGroup || '';
+                newTaskEl.dataset.customerName = taskEl.dataset.customerName || '';
+                newTaskEl.dataset.caseType = taskEl.dataset.caseType || '';
+                newTaskEl.dataset.genbaName = taskEl.dataset.genbaName || '';
+                newTaskEl.dataset.memo = taskEl.dataset.memo || '';
+                newTaskEl.dataset.biko = taskEl.dataset.biko || '';
+                attachTooltipToTaskElement(newTaskEl);
+                hideTooltipsForRecord(recordId);
                 taskEl.replaceWith(newTaskEl);
                 await splitInstallToRelocateUI({ item: newTaskEl, from: fromTd, to: toTd });
                 await saveTaskOrder(toTd);
                 if (fromTd !== toTd) await saveTaskOrder(fromTd);
+                await syncLinkedAppsForCell(toTd);
 
                 // // 🚀 移動後にボタン状態を更新
                 refreshAllBulkButtons();
@@ -2237,8 +2485,9 @@ async function updateCalendarDel(year, month) {
               if (isFromSlot && isToPlan) {
                 const prevStatus = taskEl.dataset.status || '未受注';
                 await mergeRelocateToInstallPlan(evt);
+                hideTooltipsForRecord(recordId);
 
-                const siblings = Array.from(toTd.querySelectorAll('.task-bar'));
+                const siblings = Array.from(document.querySelectorAll('.task-bar'));
                 siblings.forEach(el => {
                   if (el !== taskEl && el.dataset.recordId === recordId && el.dataset.subId !== subId) {
                     el.remove();
@@ -2263,7 +2512,11 @@ async function updateCalendarDel(year, month) {
                 newTaskEl.dataset.taskKind = '3：設置予定';
                 newTaskEl.dataset.status   = prevStatus;
                 newTaskEl.dataset.date     = targetDate;
+                newTaskEl.dataset.caseNumber = taskEl.dataset.caseNumber || '';
+                newTaskEl.dataset.taskGroup = taskEl.dataset.taskGroup || '';
+                attachTooltipToTaskElement(newTaskEl);
 
+                hideTooltipsForRecord(recordId);
                 taskEl.replaceWith(newTaskEl);
                 await saveTaskOrder(toTd);
                 if (fromTd !== toTd) await saveTaskOrder(fromTd);
@@ -2437,6 +2690,7 @@ async function splitInstallToRelocateUI(evt) {
     回・設フラグ: '回'
   };
 
+  relocateTask[FIELD_TASK_GROUP] = parentTaskEl.dataset.taskGroup || '';
   const relocateBar = await createTaskBar(relocateTask, 'relocate');
   if (!relocateBar) return null;
 
@@ -2445,6 +2699,14 @@ async function splitInstallToRelocateUI(evt) {
   relocateBar.dataset.taskKind = targetTaskKind;
   relocateBar.dataset.status   = parentStatus;
   relocateBar.dataset.date     = date;
+  relocateBar.dataset.caseNumber = parentTaskEl.dataset.caseNumber || '';
+  relocateBar.dataset.taskGroup = parentTaskEl.dataset.taskGroup || '';
+  relocateBar.dataset.customerName = parentTaskEl.dataset.customerName || '';
+  relocateBar.dataset.caseType = parentTaskEl.dataset.caseType || '';
+  relocateBar.dataset.genbaName = parentTaskEl.dataset.genbaName || '';
+  relocateBar.dataset.memo = parentTaskEl.dataset.memo || '';
+  relocateBar.dataset.biko = parentTaskEl.dataset.biko || '';
+  attachTooltipToTaskElement(relocateBar);
 
   /* =========================
      ⑨ 親の直前に挿入

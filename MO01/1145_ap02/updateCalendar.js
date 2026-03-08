@@ -146,37 +146,6 @@
                 }
               }
 
-              if (false) {
-              const collectResp = await kintone.api(
-                kintone.api.url('/k/v1/records', true),
-                'GET',
-                {
-                  app: TARGET_APP_ID,
-                  query: `${FIELD_NO} = "${linkedCaseNo}"`,
-                  fields: ['$id', '回収先・現場名']
-                }
-              );
-
-              if (collectResp.records.length > 0) {
-                const collectTarget = collectResp.records[0];
-                const currentCollectFrom =
-                  collectTarget['回収先・現場名']?.value || '';
-
-                if (currentCollectFrom !== sourceGenbaName) {
-                  await kintone.api(
-                    kintone.api.url('/k/v1/record', true),
-                    'PUT',
-                    {
-                      app: TARGET_APP_ID,
-                      id: collectTarget.$id.value,
-                      record: {
-                        '回収先・現場名': { value: sourceGenbaName }
-                      }
-                    }
-                  );
-                }
-              }
-              }
             }
           }
 
@@ -303,6 +272,7 @@
       'app.record.edit.submit'
     ],
     async function (event) {
+      return event;
   
       const record = event.record;
   

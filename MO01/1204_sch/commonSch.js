@@ -300,6 +300,76 @@ function updateTaskRecords(updates) {
 }
 
 async function updateTaskRecordsSafely(updates) {
+    if (!Array.isArray(updates) || updates.length === 0) return;
+
+    const grouped = updates.reduce((acc, update) => {
+        const recordId = String(update.recordId || '').trim();
+        const subId = String(update.subId || '').trim();
+        if (!recordId || !subId) return acc;
+        if (!acc[recordId]) acc[recordId] = {};
+        acc[recordId][subId] = {
+            ...(acc[recordId][subId] || {}),
+            ...(update.fieldUpdates || {})
+        };
+        return acc;
+    }, {});
+
+    const recordIds = Object.keys(grouped);
+    if (recordIds.length === 0) return;
+
+    try {
+        const getResp = await kintone.api(kintone.api.url('/k/v1/records', true), 'GET', {
+            app: APP_IDS.TASK,
+            query: `$id in (${recordIds.join(',')})`
+        });
+
+        const subTableField = 'タスク管理';
+        const recordsToUpdate = getResp.records.map(record => {
+            const recordId = record.$id.value;
+            const subUpdates = grouped[recordId];
+            if (!subUpdates) return null;
+
+            const updatedSubTable = record[subTableField].value.map(row => {
+                const fieldUpdates = subUpdates[String(row.id)];
+                if (!fieldUpdates) return row;
+                Object.keys(fieldUpdates).forEach(key => {
+                    if (row.value[key]) {
+                        row.value[key].value = fieldUpdates[key];
+                    }
+                });
+                return row;
+            });
+
+            return {
+                id: recordId,
+                record: {
+                    [subTableField]: {
+                        value: updatedSubTable
+                    }
+                }
+            };
+        }).filter(Boolean);
+
+        if (recordsToUpdate.length === 0) return;
+
+        await kintone.api(kintone.api.url('/k/v1/records', true), 'PUT', {
+            app: APP_IDS.TASK,
+            records: recordsToUpdate
+        });
+
+        /*
+        recordsToUpdate.forEach(update => {
+            console.log(`笨・RecordID=${update.id} 縺ｮ繧ｵ繝悶ユ繝ｼ繝悶Ν譖ｴ譁ｰ縺励∪縺励◆`);
+        });
+        */
+        recordsToUpdate.forEach(update => {
+            console.log(`Updated subtable order in record ${update.id}`);
+        });
+        return;
+    } catch (error) {
+        console.error('圷 updateTaskRecordsSafely 螟ｱ謨・', error);
+        throw error;
+    }
 
     for (const update of updates) {
         try {
@@ -594,12 +664,61 @@ function kintoneApiWrapper(url, method, body, successCallback, errorCallback) {
     kintone.api(url, method, body, successCallback, errorCallback);
 }
 
+async function updateTaskRecordsBulk(updates) {
+    if (!Array.isArray(updates) || updates.length === 0) return;
+
+    const tableField = '\u30bf\u30b9\u30af\u7ba1\u7406';
+    const records = updates
+        .map(update => {
+            const recordId = String(update.recordId || '').trim();
+            const subId = String(update.subId || '').trim();
+            if (!recordId || !subId) return null;
+
+            const rowValue = {};
+            if (update.newDate !== undefined && update.newDate !== null && update.newDate !== '') {
+                rowValue['\u65e5\u4ed8'] = { value: update.newDate };
+            }
+            if (update.newStatus !== undefined && update.newStatus !== null && update.newStatus !== '') {
+                rowValue['\u8abf\u6574\u72b6\u6cc1'] = { value: update.newStatus };
+            }
+            if (update.newTaskKind !== undefined && update.newTaskKind !== null && update.newTaskKind !== '') {
+                rowValue['\u30bf\u30b9\u30af'] = { value: update.newTaskKind };
+            }
+            if (Object.keys(rowValue).length === 0) return null;
+
+            return {
+                id: recordId,
+                record: {
+                    [tableField]: {
+                        value: [{ id: subId, value: rowValue }]
+                    }
+                }
+            };
+        })
+        .filter(Boolean);
+
+    if (records.length === 0) return;
+
+    await kintone.api(kintone.api.url('/k/v1/records', true), 'PUT', {
+        app: APP_IDS.TASK,
+        records
+    });
+}
+
  
  /**
  * Kintoneの担当者フィールドを更新
  */
 function updateTaskRecord(recordId, subId, newDate, newStatus, newTaskKind) {
   console.log(`📡 [DEBUG] updateTaskRecord 実行: recordId=${recordId}, subId=${subId}, newDate=${newDate}, newStatus=${newStatus}, newTaskKind=${newTaskKind}`);
+
+  return updateTaskRecordsBulk([{
+    recordId,
+    subId,
+    newDate,
+    newStatus,
+    newTaskKind
+  }]);
 
   return new Promise((resolve, reject) => {
     // まず、現在のレコードを取得
@@ -908,6 +1027,7 @@ function fetchTasksFromSubTable(records) {
         詳細: v['詳細']?.value || '',
         備考: v['備考']?.value || ''
       };
+      task['\u30bf\u30b9\u30afG'] = v['\u30bf\u30b9\u30afG']?.value || '';
 
       // =========================
       // 表示専用フィールド分岐

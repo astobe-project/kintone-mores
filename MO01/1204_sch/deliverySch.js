@@ -1,7 +1,9 @@
-// ★ 設置メモ表示状態（true=表示 / false=非表示）
+// Install memo visibility state.
 window._installMemoVisible = true;
-// ★ 回収メモ表示状態（true=表示 / false=非表示）
+// Collect memo visibility state.
 window._collectMemoVisible = true;
+window._calendarRenderToken = 0;
+window._calendarNavBound = false;
 
 
 /**
@@ -42,6 +44,58 @@ async function fetchFieldOptions(fieldName) {
         }
     } catch (error) {
         console.error(`🚨 [ERROR] ${fieldName} の選択肢取得に失敗:`, error.message);
+        return [];
+    }
+}
+async function initApp() {
+    await Promise.all([
+        fetchFieldOptions('タスクG'),
+        fetchFieldOptions('配送業者'),
+        fetchFieldOptions('作業担当')
+    ]);
+}
+
+async function fetchFieldOptions(fieldName) {
+    console.log(`Fetching field options for: ${fieldName}`);
+
+    // キャッシュがある場合はそれを返す
+    if (fieldName === 'タスクG' && taskGOptionsCache) return taskGOptionsCache;
+    if (fieldName === '配送業者' && deliveryOptionsCache) return deliveryOptionsCache;
+    if (fieldName === '作業担当' && assignedOptionsCache) return assignedOptionsCache;
+
+    try {
+        const response = await kintone.api(
+            kintone.api.url('/k/v1/app/form/fields', true),
+            'GET',
+            { app: kintone.app.getId() }
+        );
+
+        let fieldDef = response.properties?.[fieldName];
+        
+        // 通常のフィールドに見つからない場合、サブテーブル内を探索
+        if (!fieldDef) {
+            Object.values(response.properties || {}).some(prop => {
+                if (prop?.type === 'SUBTABLE' && prop.fields?.[fieldName]) {
+                    fieldDef = prop.fields[fieldName];
+                    return true;
+                }
+                return false;
+            });
+        }
+
+        if (!fieldDef?.options) {
+            return [];
+        }
+
+        // 選択肢をソートしてキャッシュに保存
+        const options = Object.keys(fieldDef.options).sort();
+        if (fieldName === 'タスクG') taskGOptionsCache = options;
+        if (fieldName === '配送業者') deliveryOptionsCache = options;
+        if (fieldName === '作業担当') assignedOptionsCache = options;
+        
+        return options;
+    } catch (error) {
+        console.error(`Field option fetch failed: ${fieldName}`, error.message);
         return [];
     }
 }
@@ -423,6 +477,13 @@ async function addTaskToCalendar(record) {
   const tooltip = document.createElement('div');
   tooltip.className = 'tooltip';
   tooltip.style.zIndex = 10000;
+  const getTooltipValue = (fieldName, fallback = '') => {
+    const value = record?.[fieldName];
+    if (value && typeof value === 'object' && 'value' in value) {
+      return value.value || fallback;
+    }
+    return value || fallback;
+  };
 
   const caseNumber   = record['案件番号']?.value || '不明';
   const caseType     = record['案件種別']?.value || '不明';
@@ -447,6 +508,35 @@ async function addTaskToCalendar(record) {
 メモ：${memo}
 備考：${biko}`;
 
+const tooltipCaseNumber   = getTooltipValue('案件番号', '不明');
+  const tooltipCaseType     = getTooltipValue('案件種別', '不明');
+  const tooltipCustomerName = getTooltipValue('得意先名', '不明');
+  const tooltipTaskNo       = getTooltipValue('表示順');
+  const tooltipGenbaName     = getTooltipValue('現場名');
+  const tooltipStatus       = getTooltipValue('調整状況');
+  const tooltipMemo         = getTooltipValue('メモ');
+  const tooltipBiko         = getTooltipValue('備考');
+
+  tooltip.textContent =
+    `案件番号：${tooltipCaseNumber}
+案件種別：${tooltipCaseType}
+得意先名：${tooltipCustomerName}
+順番：${tooltipTaskNo}
+現場名：${tooltipGenbaName}
+状況：${tooltipStatus}
+メモ：${tooltipMemo}
+備考：${tooltipBiko}`;
+  tooltip.innerHTML =
+    `<div style="font-weight:700;font-size:14px;margin-bottom:4px;">得意先名：${escapeHtml(tooltipCustomerName)}</div>
+<div>案件番号：${escapeHtml(tooltipCaseNumber)}</div>
+<div>案件種別：${escapeHtml(tooltipCaseType)}</div>
+<div>順番：${escapeHtml(tooltipTaskNo)}</div>
+<div>現場名：${escapeHtml(tooltipGenbaName)}</div>
+<div>状況：${escapeHtml(tooltipStatus)}</div>
+<div>メモ：${escapeHtml(tooltipMemo)}</div>
+<div>備考：${escapeHtml(tooltipBiko)}</div>`;
+
+  tooltip.innerHTML = `<div>得意先名：${escapeHtml(tooltipCustomerName)}</div><div>----------------------------------------</div><div>案件番号：${escapeHtml(tooltipCaseNumber)}</div><div>案件種別：${escapeHtml(tooltipCaseType)}</div><div>順番：${escapeHtml(tooltipTaskNo)}</div><div>現場名：${escapeHtml(tooltipGenbaName)}</div><div>状況：${escapeHtml(tooltipStatus)}</div><div>メモ：${escapeHtml(tooltipMemo)}</div><div>備考：${escapeHtml(tooltipBiko)}</div>`;
   document.body.appendChild(tooltip);
 
   // =========================
@@ -605,6 +695,14 @@ async function createTaskBar(record, type) {
 //        ${escapeHtml(task.案件種別 || '')}｜${escapeHtml(task.案件番号 || '')}
 
 
+    const installRow3 = rightDiv.querySelector('.install-row-3');
+    const collectFromText = (task.回収元現場名 || '').trim();
+    if (installRow3 && collectFromText) {
+      installRow3.textContent = collectFromText;
+    }
+    if (installRow3 && !installRow3.textContent.trim()) {
+      installRow3.innerHTML = '<span class="collect-from-placeholder">\u4e8b\u52d9\u6240</span>';
+    }
   } else if (barMode === 'collect') {
     // --- 回収バー（3段） ---
     rightDiv.className = 'task-right collect-right';
@@ -671,6 +769,14 @@ async function createTaskBar(record, type) {
   // ===== 5) DOM =====
   taskEl.appendChild(leftDiv);
   taskEl.appendChild(rightDiv);
+
+  const orderValue = String(task.表示順 || '').trim();
+  if (orderValue) {
+    const orderBadge = document.createElement('div');
+    orderBadge.className = 'task-order-badge';
+    orderBadge.textContent = orderValue;
+    rightDiv.appendChild(orderBadge);
+  }
 
   // ===== 5.5) メモ保存 =====
   const memoEl = rightDiv.querySelector('[contenteditable="true"]');
@@ -795,6 +901,70 @@ function buildPrepStatusSelect(record, taskEl) {
     } catch (err) {
       console.error('🚨 準備状況更新失敗:', err);
       alert('準備状況の更新に失敗しました。');
+    }
+  });
+
+  return select;
+}
+function buildPrepStatusSelect(record, taskEl) {
+  const select = document.createElement('select');
+  select.className = 'task-select';
+
+  // --- 日本語に修正した変数群 ---
+  const taskTableField = 'タスク管理'; // サブテーブルのフィールドコード
+  const taskGroupField = 'タスクG';    // サブテーブル内のフィールドコード
+  const unsetLabel     = '未設定';     // 未選択時のラベル
+  // ----------------------------
+
+  const getFieldValue = (obj, fieldName) => {
+    const value = obj?.[fieldName];
+    return value && typeof value === 'object' && 'value' in value ? value.value : value;
+  };
+
+  const defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = unsetLabel;
+  select.appendChild(defaultOpt);
+
+  if (Array.isArray(taskGOptionsCache)) {
+    taskGOptionsCache.forEach(opt => {
+      const option = document.createElement('option');
+      option.value = opt;
+      option.textContent = opt;
+      select.appendChild(option);
+    });
+  }
+
+  const currentTaskGroup = getFieldValue(record, taskGroupField) || '';
+  select.value = currentTaskGroup;
+  select.style.backgroundColor = currentTaskGroup ? '#fff5e6' : '#ffffff';
+
+  select.addEventListener('change', async () => {
+    const newValue = select.value;
+    select.style.backgroundColor = newValue ? '#fff5e6' : '#ffffff';
+
+    const recordId = taskEl.dataset.recordId;
+    const subId = taskEl.dataset.subId;
+    if (!recordId || !subId) {
+      alert('レコードIDまたはサブIDが取得できません');
+      return;
+    }
+
+    try {
+      await kintone.api(kintone.api.url('/k/v1/record', true), 'PUT', {
+        app: kintone.app.getId(),
+        id: recordId,
+        record: {
+          [taskTableField]: {
+            // サブテーブル内の特定の行（id: subId）だけを更新する形式
+            value: [{ id: subId, value: { [taskGroupField]: { value: newValue } } }]
+          }
+        }
+      });
+      console.log(`タスクG 更新完了: ${newValue}`);
+    } catch (err) {
+      console.error('タスクG 更新失敗:', err);
+      alert('タスクGの更新に失敗しました。');
     }
   });
 
@@ -1167,8 +1337,19 @@ function populateCalendarCells(recordMap, recordMap2, year, month, containerId) 
 
         document.querySelectorAll(`.calendar-cell[data-date="${isoDate}"]`).forEach((cell, index) => {
             if (["task-1st", "task-2nd", "task-3rd", "task-4th", "task-5th"].includes(cell.id)) {
-                const record = recordsForDate.find(record => parseInt(record["配送番号"].value, 10) === index + 1);
-                populateDropdown(cell, record ? record["配送業者"].value : "", record, isoDate, index + 1);
+                const slotNumberMap = {
+                    "task-1st": 1,
+                    "task-2nd": 2,
+                    "task-3rd": 3,
+                    "task-4th": 4,
+                    "task-5th": 5
+                };
+                const slotNumber = slotNumberMap[cell.id] || 0;
+                const record = recordsForDate.find(record => {
+                    const deliveryNo = parseInt(record["配送番号"].value, 10);
+                    return deliveryNo === slotNumber || deliveryNo === slotNumber + 6;
+                });
+                populateDropdown(cell, record ? record["配送業者"].value : "", record, isoDate, slotNumber);
             }
         });
     }
@@ -1223,7 +1404,7 @@ function populateDropdown(cell, existingValue = "", record, date, column) {
     // 🎯 列名特定ロジック（7=1台目, 8=2台目...）
     const getStrictTaskName = (col) => {
         const idMap = { 'task-1st': '3：1台目', 'task-2nd': '3：2台目', 'task-3rd': '3：3台目', 'task-4th': '3：4台目', 'task-5th': '3：5台目' };
-        const indexMap = { 7: '3：1台目', 8: '3：2台目', 9: '3：3台目', 10: '3：4台目', 11: '3：5台目' };
+        const indexMap = { 1: '3：1台目', 2: '3：2台目', 3: '3：3台目', 4: '3：4台目', 5: '3：5台目' };
         return idMap[col] || indexMap[col];
     };
 
@@ -1279,6 +1460,32 @@ debugger;
     // プルダウン・メモ欄は既存通り（略）
     const dropdown = document.createElement('select');
     dropdown.style.cssText = 'height:40px; border-radius:10px; width:130px; border:1px solid #ccc;';
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = '';
+    dropdown.appendChild(emptyOption);
+
+    if (Array.isArray(deliveryOptionsCache)) {
+        deliveryOptionsCache.forEach(optionValue => {
+            const option = document.createElement('option');
+            option.value = optionValue;
+            option.textContent = optionValue;
+            dropdown.appendChild(option);
+        });
+    }
+
+    dropdown.value = existingValue || '';
+    updateDropdownBackground(dropdown);
+    dropdown.addEventListener('change', function () {
+        const selectedValue = dropdown.value || "";
+        updateDropdownBackground(dropdown);
+
+        if (record && record.$id) {
+            updatePdownRecord(record.$id.value, selectedValue);
+        } else {
+            createRecord(APP_IDS.DELIVERY, date, column, selectedValue, memoInput?.value || "");
+        }
+    });
     
     const memoInput = document.createElement('input');
     memoInput.type = 'text';
@@ -1325,7 +1532,7 @@ debugger;
 function refreshAllBulkButtons() {
     const getStrictTaskName = (col) => {
         const idMap = { 'task-1st': '3：1台目', 'task-2nd': '3：2台目', 'task-3rd': '3：3台目', 'task-4th': '3：4台目', 'task-5th': '3：5台目' };
-        const indexMap = { 7: '3：1台目', 8: '3：2台目', 9: '3：3台目', 10: '3：4台目', 11: '3：5台目' };
+        const indexMap = { 1: '3：1台目', 2: '3：2台目', 3: '3：3台目', 4: '3：4台目', 5: '3：5台目' };
         return idMap[col] || indexMap[col];
     };
 
@@ -1450,6 +1657,31 @@ function createRecord(appId, date, column, selectedValue, newMemo) {
     });
 }
 
+
+function updatePdownRecord(recordId, selectedValue) {
+    const updateBody = {
+        app: APP_IDS.DELIVERY,
+        id: recordId,
+        record: {
+            "配送業者": { value: selectedValue || "" }
+        }
+    };
+
+    return kintone.api(kintone.api.url('/k/v1/record', true), 'PUT', updateBody);
+}
+
+function updatePdownRecordMemo(taskId, selectedValue, memoValue) {
+    const updateBody = {
+        app: APP_IDS.DELIVERY,
+        id: taskId,
+        record: {
+            "配送業者": { value: selectedValue || "" },
+            "メモ": { value: memoValue || "" }
+        }
+    };
+
+    return kintone.api(kintone.api.url('/k/v1/record', true), 'PUT', updateBody);
+}
 
 function generateCalendar(year, month, containerId, appId) {
   const daysInFirstMonth = new Date(year, month + 1, 0).getDate();
@@ -1628,8 +1860,10 @@ async function updateSelfRecord(recordId, subId, selectedValue) {
         if (viewId !== 8223617) return kintoneEvent;
 
         const date = new Date();
-        let year = parseInt(localStorage.getItem('calendarYear'), 10) || date.getFullYear();
-        let month = parseInt(localStorage.getItem('calendarMonth'), 10) || date.getMonth();
+        const savedYear = parseInt(localStorage.getItem('calendarYear'), 10);
+        const savedMonth = parseInt(localStorage.getItem('calendarMonth'), 10);
+        let year = Number.isNaN(savedYear) ? date.getFullYear() : savedYear;
+        let month = Number.isNaN(savedMonth) ? date.getMonth() : savedMonth;
 
         // 🔸 アプリロード時に1回だけ実行
         await initApp();
@@ -1638,32 +1872,45 @@ async function updateSelfRecord(recordId, subId, selectedValue) {
 
 
         await updateCalendarDel(year, month);
+        window._calendarCurrentYear = year;
+        window._calendarCurrentMonth = month;
 
-        document.getElementById('prev-month').addEventListener('click', async () => {
-            month = (month - 1 + 12) % 12;
-            if (month === 11) year--;
-            await updateCalendarDel(year, month);
-         });
+        if (!window._calendarNavBound) {
+          document.getElementById('prev-month').addEventListener('click', async () => {
+              let currentYear = window._calendarCurrentYear;
+              let currentMonth = window._calendarCurrentMonth;
+              currentMonth = (currentMonth - 1 + 12) % 12;
+              if (currentMonth === 11) currentYear--;
+              window._calendarCurrentYear = currentYear;
+              window._calendarCurrentMonth = currentMonth;
+              await updateCalendarDel(currentYear, currentMonth);
+           });
 
-        document.getElementById('now-month').addEventListener('click', async () => {
-            const today = new Date();
-            year = today.getFullYear();
-            month = today.getMonth();
-            await updateCalendarDel(year, month);
-        });
+          document.getElementById('now-month').addEventListener('click', async () => {
+              const today = new Date();
+              window._calendarCurrentYear = today.getFullYear();
+              window._calendarCurrentMonth = today.getMonth();
+              await updateCalendarDel(window._calendarCurrentYear, window._calendarCurrentMonth);
+          });
 
-        document.getElementById('next-month').addEventListener('click', async () => {
-            month = (month + 1) % 12;
-            if (month === 0) year++;
-            await updateCalendarDel(year, month);
-        });
-        
-        document.getElementById('reload-page').addEventListener('click', async () => {
-            location.reload();
-        });
-        document.getElementById('scroll-today').addEventListener('click', () => {
-          scrollToToday();
-        });
+          document.getElementById('next-month').addEventListener('click', async () => {
+              let currentYear = window._calendarCurrentYear;
+              let currentMonth = window._calendarCurrentMonth;
+              currentMonth = (currentMonth + 1) % 12;
+              if (currentMonth === 0) currentYear++;
+              window._calendarCurrentYear = currentYear;
+              window._calendarCurrentMonth = currentMonth;
+              await updateCalendarDel(currentYear, currentMonth);
+          });
+          
+          document.getElementById('reload-page').addEventListener('click', async () => {
+              location.reload();
+          });
+          document.getElementById('scroll-today').addEventListener('click', () => {
+            scrollToToday();
+          });
+          window._calendarNavBound = true;
+        }
         document.getElementById('scroll-top').addEventListener('click', () => {
           scrollToTop();
         });
@@ -1751,6 +1998,7 @@ async function mergeRelocateToInstallPlan(evt) {
 
 
 async function updateCalendarDel(year, month) {
+  const renderToken = ++window._calendarRenderToken;
   showLoadingMessage();
   showProgressBar();
 
@@ -1758,7 +2006,11 @@ async function updateCalendarDel(year, month) {
      ★ 設置概要：月単位プリロード（追加）
      ※ month は 0-based → +1
   ========================= */
-  await preloadInstallSummary(year, month + 1);
+  const nextMonthDate = new Date(year, month + 1, 1);
+  await Promise.all([
+    preloadInstallSummary(year, month + 1),
+    preloadInstallSummary(nextMonthDate.getFullYear(), nextMonthDate.getMonth() + 1)
+  ]);
 
   /* =========================
      カレンダー生成
@@ -1780,6 +2032,7 @@ async function updateCalendarDel(year, month) {
   ========================= */
   setProgress(10);
   const allRecords = await fetchAllRecords(year, month);
+  if (renderToken !== window._calendarRenderToken) return;
   setProgress(50);
 
   if (!allRecords || allRecords.length === 0) {
@@ -1798,7 +2051,9 @@ async function updateCalendarDel(year, month) {
      カレンダー描画 & データ反映
   ========================= */
   fetchAndPopulateCells(year, month, 'calendar', async () => {
+    if (renderToken !== window._calendarRenderToken) return;
     setProgress(80);
+    document.querySelectorAll('#calendar .task-bar').forEach(el => el.remove());
 
     console.time('⏳ [TIME] loadTasks');
     loadTasks(allTasks, year, month);
@@ -1895,6 +2150,13 @@ async function updateCalendarDel(year, month) {
             try {
               // // ① 設置予定 → 台目
               if (isFromPlan && isToSlot) {
+                const deliverySelect = toTd.querySelector('select');
+                const selectedDelivery = deliverySelect?.value?.trim() || '';
+                if (!selectedDelivery) {
+                  try { evt.from?.appendChild(taskEl); } catch (_) {}
+                  alert('タスクを移動する前に配送会社を決めてください');
+                  return;
+                }
                 const prevStatus = taskEl.dataset.status || '未受注';
                 await updateTaskRecord(recordId, subId, targetDate, prevStatus, toKind);
               
@@ -2068,7 +2330,7 @@ async function splitInstallToRelocateUI(evt) {
      ========================= */
   const collectName =
     parentTaskEl.querySelector('.install-row-3')?.textContent?.trim() || '';
-  if (!collectName) return null;
+  if (!collectName || collectName === '事務所') return null;
 
   const targetTaskKind = taskKindFromCellId(toTd.id);
   if (!targetTaskKind) return null;
@@ -2225,9 +2487,6 @@ function normalizeRecordFormat(record) {
 
 async function fetchAllRecords(year, month) {
     let allRecords = [];
-    const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const endDate = new Date(year, month + 2, 0).toISOString().split('T')[0];
-
     let lastRetrievedId = 0;
     const limit = 500;
     let hasMoreRecords = true;
@@ -2236,7 +2495,9 @@ async function fetchAllRecords(year, month) {
 
 //    console.log(`📌 [DEBUG] 取得範囲: ${startDate} 〜 ${endDate}`);
     while (hasMoreRecords) {
-        const fullQuery = `($id > ${lastRetrievedId}) and ((案件登録日付 >= "${startDate}" and 案件登録日付 <= "${endDate}") or (撮影日付 >= "${startDate}" and 撮影日付 <= "${endDate}")) order by $id asc limit ${limit}`;
+        // Display inclusion is decided by subtable "日付", so parent-record date filters
+        // make overlapping months inconsistent between adjacent 2-month windows.
+        const fullQuery = `($id > ${lastRetrievedId}) order by $id asc limit ${limit}`;
 
         const body = {
             app: kintone.app.getId(),

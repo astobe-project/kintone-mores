@@ -444,6 +444,21 @@ async function saveTaskOrder(container) {
     td.querySelectorAll('.task-bar')
   );
 
+  console.group(`saveTaskOrder start: ${taskKind} ${date}`);
+  bars.forEach((taskEl, index) => {
+    const title =
+      taskEl.querySelector('.task-middle, .install-row-1, .collect-row-2, .relocate-row-2')?.textContent?.trim() || '';
+    const badge =
+      taskEl.querySelector('.task-order-badge')?.textContent?.trim() || '';
+    console.log('before', {
+      index: index + 1,
+      subId: taskEl.dataset.subId || '',
+      order: taskEl.dataset.order || '',
+      badge,
+      title
+    });
+  });
+
   const updates = [];
 
   bars.forEach((taskEl, index) => {
@@ -451,9 +466,11 @@ async function saveTaskOrder(container) {
     const subId = taskEl.dataset.subId;
     const newOrder = index + 1;
 
-    if (!recordId || !subId) return;
-
     taskEl.dataset.order = newOrder;
+    syncTaskOrderBadge(taskEl, newOrder);
+    syncTaskOrderText(taskEl, newOrder);
+
+    if (!recordId || !subId) return;
 
     updates.push({
       recordId,
@@ -471,6 +488,53 @@ async function saveTaskOrder(container) {
   if (updates.length > 0) {
     await updateTaskRecordsSafely(updates);
   }
+
+  reorderDomByOrder(td);
+
+  Array.from(td.querySelectorAll('.task-bar')).forEach((taskEl, index) => {
+    const title =
+      taskEl.querySelector('.task-middle, .install-row-1, .collect-row-2, .relocate-row-2')?.textContent?.trim() || '';
+    const badge =
+      taskEl.querySelector('.task-order-badge')?.textContent?.trim() || '';
+    console.log('after', {
+      index: index + 1,
+      subId: taskEl.dataset.subId || '',
+      order: taskEl.dataset.order || '',
+      badge,
+      title
+    });
+  });
+  console.groupEnd();
+}
+
+function syncTaskOrderBadge(taskEl, order) {
+  const orderText = String(order ?? '').trim();
+  let badge = taskEl.querySelector('.task-order-badge');
+
+  if (!orderText) {
+    if (badge) badge.remove();
+    return;
+  }
+
+  if (!badge) {
+    const rightDiv = taskEl.querySelector('.task-right');
+    if (!rightDiv) return;
+    badge = document.createElement('div');
+    badge.className = 'task-order-badge';
+    rightDiv.appendChild(badge);
+  }
+
+  badge.textContent = orderText;
+}
+
+function syncTaskOrderText(taskEl, order) {
+  const topEl = taskEl.querySelector('.task-top');
+  if (!topEl) return;
+
+  const rawText = topEl.textContent || '';
+  const trimmed = rawText.trimStart();
+  const replaced = trimmed.replace(/^\d+\s*/, '');
+  topEl.textContent = `${order} ${replaced}`.trim();
 }
 
 
@@ -479,8 +543,10 @@ function reorderDomByOrder(container) {
   const bars = Array.from(container.querySelectorAll('.task-bar'));
 
   bars.sort((a, b) => {
-    const aOrder = parseInt(a.dataset.order || 9999, 10);
-    const bOrder = parseInt(b.dataset.order || 9999, 10);
+    const aBadge = a.querySelector('.task-order-badge')?.textContent || '';
+    const bBadge = b.querySelector('.task-order-badge')?.textContent || '';
+    const aOrder = parseInt(a.dataset.order || aBadge || 9999, 10);
+    const bOrder = parseInt(b.dataset.order || bBadge || 9999, 10);
     return aOrder - bOrder;
   });
 
@@ -2073,6 +2139,191 @@ async function preloadInstallSummary(year, month) {
 
   } catch (error) {
     console.error('🚨 preloadInstallSummary 失敗:', error);
+  }
+}
+
+const SUMMARY_FIELDS = {
+  date: '日付',
+  category: '分類',
+  memo: 'メモ',
+  color: 'テキストカラー',
+  bold: 'テキストボールド'
+};
+
+function normalizeSummaryCategory(category) {
+  if (category === '設置メモ') return '設置';
+  if (category === '回収メモ') return '回収';
+  return category;
+}
+
+async function saveInstallOrCollectMemo({
+  isoDate,
+  category,
+  no,
+  memo,
+  color = '#000000',
+  bold = false
+}) {
+  if (!no) return;
+
+  const normalizedCategory = normalizeSummaryCategory(category);
+  const searchResp = await kintone.api(
+    kintone.api.url('/k/v1/records', true),
+    'GET',
+    {
+      app: APP_IDS.INSTALL_SUMMARY,
+      query: `
+        ${SUMMARY_FIELDS.date} = "${isoDate}"
+        and No = ${no}
+        and ${SUMMARY_FIELDS.category} in ("${normalizedCategory}")
+      `,
+      fields: ['$id']
+    }
+  );
+
+  const recordData = {
+    [SUMMARY_FIELDS.date]: { value: isoDate },
+    No: { value: no },
+    [SUMMARY_FIELDS.category]: { value: normalizedCategory },
+    [SUMMARY_FIELDS.memo]: { value: memo || '' },
+    [SUMMARY_FIELDS.color]: { value: color },
+    [SUMMARY_FIELDS.bold]: { value: bold ? 'ON' : '' }
+  };
+
+  if (searchResp.records.length > 0) {
+    await kintone.api(
+      kintone.api.url('/k/v1/record', true),
+      'PUT',
+      {
+        app: APP_IDS.INSTALL_SUMMARY,
+        id: searchResp.records[0].$id.value,
+        record: recordData
+      }
+    );
+  } else {
+    await kintone.api(
+      kintone.api.url('/k/v1/record', true),
+      'POST',
+      {
+        app: APP_IDS.INSTALL_SUMMARY,
+        record: recordData
+      }
+    );
+  }
+}
+
+async function loadInstallOrCollectMemo(isoDate, category, no) {
+  const normalizedCategory = normalizeSummaryCategory(category);
+  const resp = await kintone.api(
+    kintone.api.url('/k/v1/records', true),
+    'GET',
+    {
+      app: APP_IDS.INSTALL_SUMMARY,
+      query: `
+        ${SUMMARY_FIELDS.date} = "${isoDate}"
+        and No = ${no}
+        and ${SUMMARY_FIELDS.category} in ("${normalizedCategory}")
+      `,
+      fields: [SUMMARY_FIELDS.memo]
+    }
+  );
+
+  if (resp.records.length === 0) return '';
+  return resp.records[0][SUMMARY_FIELDS.memo]?.value || '';
+}
+
+async function saveInstallSummary(isoDate, no, text, color, bold) {
+  if (!text || !text.trim()) {
+    await deleteInstallSummary(isoDate, no);
+    return;
+  }
+
+  const searchResp = await kintone.api(
+    kintone.api.url('/k/v1/records', true),
+    'GET',
+    {
+      app: APP_IDS.INSTALL_SUMMARY,
+      query: `${SUMMARY_FIELDS.date} = "${isoDate}" and No = ${no}`,
+      fields: ['$id']
+    }
+  );
+
+  const recordData = {
+    [SUMMARY_FIELDS.date]: { value: isoDate },
+    No: { value: no },
+    [SUMMARY_FIELDS.memo]: { value: text },
+    [SUMMARY_FIELDS.color]: { value: color },
+    [SUMMARY_FIELDS.bold]: { value: bold ? 'ON' : '' }
+  };
+
+  if (searchResp.records.length > 0) {
+    await kintone.api(
+      kintone.api.url('/k/v1/record', true),
+      'PUT',
+      {
+        app: APP_IDS.INSTALL_SUMMARY,
+        id: searchResp.records[0].$id.value,
+        record: recordData
+      }
+    );
+  } else {
+    await kintone.api(
+      kintone.api.url('/k/v1/record', true),
+      'POST',
+      {
+        app: APP_IDS.INSTALL_SUMMARY,
+        record: recordData
+      }
+    );
+  }
+}
+
+async function preloadInstallSummary(year, month) {
+  const mm = String(month).padStart(2, '0');
+  const lastDay = new Date(year, month, 0).getDate();
+  const start = `${year}-${mm}-01`;
+  const end = `${year}-${mm}-${String(lastDay).padStart(2, '0')}`;
+
+  try {
+    const resp = await kintone.api(
+      kintone.api.url('/k/v1/records', true),
+      'GET',
+      {
+        app: APP_IDS.INSTALL_SUMMARY,
+        query: `${SUMMARY_FIELDS.date} >= "${start}" and ${SUMMARY_FIELDS.date} <= "${end}"`,
+        fields: [
+          SUMMARY_FIELDS.date,
+          'No',
+          SUMMARY_FIELDS.category,
+          SUMMARY_FIELDS.memo,
+          SUMMARY_FIELDS.color,
+          SUMMARY_FIELDS.bold
+        ]
+      }
+    );
+
+    resp.records.forEach(r => {
+      const date = r[SUMMARY_FIELDS.date]?.value;
+      if (!date) return;
+
+      if (!installSummaryCache[date]) {
+        installSummaryCache[date] = { '\u8a2d\u7f6e': {}, '\u56de\u53ce': {} };
+      }
+
+      const category = normalizeSummaryCategory(r[SUMMARY_FIELDS.category]?.value || '');
+      if (!installSummaryCache[date][category]) return;
+
+      const no = Number(r['No']?.value);
+      if (!no) return;
+
+      installSummaryCache[date][category][no] = {
+        text: r[SUMMARY_FIELDS.memo]?.value || '',
+        color: r[SUMMARY_FIELDS.color]?.value || '#000000',
+        bold: r[SUMMARY_FIELDS.bold]?.value === 'ON'
+      };
+    });
+  } catch (error) {
+    console.error('preloadInstallSummary failed', error);
   }
 }
 

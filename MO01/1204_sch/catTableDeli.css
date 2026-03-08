@@ -637,6 +637,22 @@ body {
   align-items: center;   /* ★ 縦中央寄せ */
 }
 
+.task-bottom-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.task-bottom-row .task-bottom {
+  flex: 1;
+}
+
+.task-bottom-row .task-assignee-select {
+  margin-top: 0;
+  margin-bottom: 0;
+  align-self: flex-end;
+}
+
 
 /* メモ欄（共通） */
 .task-bar [contenteditable="true"] {
@@ -830,10 +846,10 @@ body {
 
 /* 担当者欄 */
 .task-assignee-select {
-  font-size: 11px;
-  text-align: center;
-  width: 80px !important;
-  align-self: center;
+  width: 60px !important;
+  align-self: flex-start;
+  margin-top: auto;
+  margin-bottom: 0;
   white-space: nowrap;
 }
 

@@ -191,7 +191,7 @@ async function initApp() {
     await Promise.all([
         fetchFieldOptions("タスクG_list"),
         fetchFieldOptions("運送会社"),
-        fetchFieldOptions("作業担当")
+        fetchFieldOptions("担当者")
     ]);
 }
 
@@ -205,7 +205,7 @@ async function fetchFieldOptions(fieldName) {
     // 既にキャッシュがあればそれを返す
     if (fieldName === "タスクG_list" && taskGOptionsCache) return taskGOptionsCache;
     if (fieldName === "運送会社" && deliveryOptionsCache) return deliveryOptionsCache;
-    if (fieldName === "作業担当" && assignedOptionsCache) return assignedOptionsCache;
+    if (fieldName === "担当者" && assignedOptionsCache) return assignedOptionsCache;
 
     try {
         const response = await kintone.api(kintone.api.url('/k/v1/app/form/fields', true), 'GET', { app: kintone.app.getId() });
@@ -215,7 +215,7 @@ async function fetchFieldOptions(fieldName) {
             // キャッシュに保存
             if (fieldName === "タスクG_list") taskGOptionsCache = options;
             if (fieldName === "運送会社") deliveryOptionsCache = options;
-            if (fieldName === "作業担当") assignedOptionsCache = options;
+            if (fieldName === "担当者") assignedOptionsCache = options;
 
             return options;
         }
@@ -228,7 +228,7 @@ async function initApp() {
     await Promise.all([
         fetchFieldOptions('タスクG'),
         fetchFieldOptions('運送会社'),
-        fetchFieldOptions('作業担当')
+        fetchFieldOptions('担当者')
     ]);
 }
 
@@ -238,7 +238,7 @@ async function fetchFieldOptions(fieldName) {
     // キャッシュがある場合はそれを返す
     if (fieldName === 'タスクG' && taskGOptionsCache) return taskGOptionsCache;
     if (fieldName === '運送会社' && deliveryOptionsCache) return deliveryOptionsCache;
-    if (fieldName === '作業担当' && assignedOptionsCache) return assignedOptionsCache;
+    if (fieldName === '担当者' && assignedOptionsCache) return assignedOptionsCache;
 
     try {
         const fieldSourceAppId = fieldName === '運送会社' ? 1214 : kintone.app.getId();
@@ -274,7 +274,7 @@ async function fetchFieldOptions(fieldName) {
         }
         if (fieldName === 'タスクG') taskGOptionsCache = options;
         if (fieldName === '運送会社') deliveryOptionsCache = options;
-        if (fieldName === '作業担当') assignedOptionsCache = options;
+        if (fieldName === '担当者') assignedOptionsCache = options;
         
         return options;
     } catch (error) {
@@ -941,7 +941,7 @@ async function createTaskBar(record, type) {
     const order2 = padZenRight(task.表示順 || '', 2);
     const cust6  = padZenRight(task.得意先略称 || '', 6);
     const kind8  = padZenRight(task.案件種別 || '', 8);
-    const topText = `${order2}${ZEN_SPACE}${cust6}${ZEN_SPACE}${kind8}`;
+    const topText = `${cust6}${ZEN_SPACE}${kind8}`;
 
     rightDiv.innerHTML = `
       <div class="task-top">${escapeHtml(topText)}</div>
@@ -971,7 +971,16 @@ async function createTaskBar(record, type) {
 
   if (barMode === 'normal' && task.タスク === '4：撮影') {
     const assigneeSelect = buildAssigneeSelect(task, taskEl);
-    if (assigneeSelect) leftDiv.appendChild(assigneeSelect);
+    if (assigneeSelect) {
+      const memoEl = rightDiv.querySelector('.task-bottom');
+      if (memoEl) {
+        const bottomRow = document.createElement('div');
+        bottomRow.className = 'task-bottom-row';
+        memoEl.parentNode.insertBefore(bottomRow, memoEl);
+        bottomRow.appendChild(memoEl);
+        bottomRow.appendChild(assigneeSelect);
+      }
+    }
   }
 
   // ===== 5) DOM =====
@@ -1182,7 +1191,7 @@ function buildPrepStatusSelect(record, taskEl) {
 
 function buildAssigneeSelect(record, taskEl) {
   const select = document.createElement('select');
-  select.className = 'task-assignee-select';
+  select.className = 'task-select task-assignee-select';
 
   // 未設定
   const defaultOpt = document.createElement('option');
@@ -2470,7 +2479,26 @@ async function updateCalendarDel(year, month) {
                   return;
                 }
 
+                const pairedRelocateBar = Array.from(
+                  fromTd.querySelectorAll('.task-bar.bar-relocate')
+                ).find(el =>
+                  el.dataset.recordId === recordId &&
+                  el.dataset.subId !== subId
+                );
+
                 await updateTaskRecord(recordId, subId, targetDate, taskEl.dataset.status, toKind);
+                if (pairedRelocateBar?.dataset.subId) {
+                  await updateTaskRecord(
+                    recordId,
+                    pairedRelocateBar.dataset.subId,
+                    targetDate,
+                    pairedRelocateBar.dataset.status || taskEl.dataset.status,
+                    toKind
+                  );
+                  pairedRelocateBar.dataset.taskKind = toKind;
+                  pairedRelocateBar.dataset.date = targetDate;
+                  toTd.insertBefore(pairedRelocateBar, taskEl);
+                }
                 taskEl.dataset.taskKind = toKind;
                 taskEl.dataset.date     = targetDate;
                 await saveTaskOrder(toTd);

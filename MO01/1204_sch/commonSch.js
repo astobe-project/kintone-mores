@@ -972,8 +972,9 @@ function toggleColumnVisibility(columnId) {
   const table = document.querySelector('#calendar .calendar-table2');
   if (!table) return;
 
-  const header = table.querySelector(`thead th:nth-child(${config.index})`);
-  const cells  = table.querySelectorAll(`tbody td:nth-child(${config.index})`);
+  const colIndex = getColIndexByHeaderLabel(config.label) || config.index;
+  const header = table.querySelector(`thead th:nth-child(${colIndex})`);
+  const cells  = table.querySelectorAll(`tbody td:nth-child(${colIndex})`);
   if (!header) return;
 
   const isHidden = getComputedStyle(header).display === 'none';
@@ -2070,8 +2071,9 @@ function initHiddenColumns() {
   const table = document.querySelector('#calendar .calendar-table2');
   if (!table) return;
 
-  // nth-child は「日付列」を含めた番号
-  const hiddenIndexes = [10, 11]; // 4台目, 5台目
+  const hiddenIndexes = ['3：4台目', '3：5台目']
+    .map(label => getColIndexByHeaderLabel(label))
+    .filter(index => Number.isInteger(index));
 
   hiddenIndexes.forEach(index => {
     const th = table.querySelector(`thead th:nth-child(${index})`);
@@ -2307,7 +2309,7 @@ async function preloadInstallSummary(year, month) {
       if (!date) return;
 
       if (!installSummaryCache[date]) {
-        installSummaryCache[date] = { '\u8a2d\u7f6e': {}, '\u56de\u53ce': {} };
+        installSummaryCache[date] = { '設置': {}, '回収': {} };
       }
 
       const category = normalizeSummaryCategory(r[SUMMARY_FIELDS.category]?.value || '');

@@ -5,6 +5,17 @@ window._collectMemoVisible = true;
 window._calendarRenderToken = 0;
 window._calendarNavBound = false;
 
+const originalConsoleLog = console.log;
+console.log = function (...args) {
+  const firstArg = args[0];
+  if (typeof firstArg === 'string') {
+    if (firstArg.includes('addTaskToCalendar[') || firstArg.includes('createTaskBar called')) {
+      return;
+    }
+  }
+  return originalConsoleLog.apply(console, args);
+};
+
 
 /**
  * 初期化処理（アプリ起動時に1回だけ実行）
@@ -163,7 +174,7 @@ function onToggleInstallMemo() {
 
 
 
-function loadTasks(records, year, month) {
+async function loadTasks(records, year, month) {
   console.group('🧪 loadTasks START');
   console.log('records.length =', records?.length);
   console.log('records sample[0] =', records?.[0]);
@@ -195,10 +206,10 @@ function loadTasks(records, year, month) {
     }))
   );
 
-  records.forEach((record, idx) => {
+  for (const [idx, record] of records.entries()) {
     console.log(`➡️ addTaskToCalendar[${idx}]`, record);
-    addTaskToCalendar(record);
-  });
+    await addTaskToCalendar(record);
+  }
 
   console.groupEnd();
 }
@@ -2016,6 +2027,7 @@ async function updateCalendarDel(year, month) {
      カレンダー生成
   ========================= */
   generateCalendar(year, month, 'calendar', kintone.app.getId());
+  initHiddenColumns();
   
   // ★ここで必ず表示に戻す（列とボタンを同期）
 //  setInstallMemoVisible(true);
@@ -2056,8 +2068,12 @@ async function updateCalendarDel(year, month) {
     document.querySelectorAll('#calendar .task-bar').forEach(el => el.remove());
 
     console.time('⏳ [TIME] loadTasks');
-    loadTasks(allTasks, year, month);
+    await loadTasks(allTasks, year, month);
     console.timeEnd('⏳ [TIME] loadTasks');
+
+    document.querySelectorAll('#calendar td.calendar-cell').forEach(cell => {
+      reorderDomByOrder(cell);
+    });
 
 // =========================
     // Sortable 再設定
@@ -2569,4 +2585,3 @@ function scrollToTop() {
     behavior: 'smooth'
   });
 }
-

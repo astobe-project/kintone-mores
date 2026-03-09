@@ -1,0 +1,7 @@
+{
+  "name": "kintone-mores-mo01-1145-ap02",
+  "private": true,
+  "scripts": {
+    "deploy": "node ../../../scripts/kintone-deploy.js manifest.json ../../../.env"
+  }
+}

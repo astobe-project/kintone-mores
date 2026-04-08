@@ -1,7 +1,7 @@
 // Install memo visibility state.
-window._installMemoVisible = true;
+window._installMemoVisible = false;
 // Collect memo visibility state.
-window._collectMemoVisible = true;
+window._collectMemoVisible = false;
 window._calendarRenderToken = 0;
 window._calendarNavBound = false;
 
@@ -572,6 +572,9 @@ async function addTaskToCalendar(record) {
 //  console.log('② taskKind before normalize =', taskKind);
 
   taskKind = normalizeTaskKind(taskKind);
+  if (taskKind === '3：回収予定') {
+    return;
+  }
 //  console.log('② taskKind after normalize =', taskKind);
 
   record['タスク'] = taskKind;

@@ -988,6 +988,7 @@ function fetchTasksFromSubTable(records) {
 
       // 必須項目チェック
       if (!taskKind || !date) return;
+      if (taskKind === '3：回収予定') return;
 
       // =========================
       // ★ 移設判定（核心）

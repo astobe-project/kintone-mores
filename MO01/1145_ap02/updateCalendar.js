@@ -1,3 +1,128 @@
+  // ==================================================
+  // 設置予定日変更時：1204アプリへ反映（IIFE内、Promise返さない）
+  // ==================================================
+
+  (function () {
+    'use strict';
+    const TARGET_APP_ID = 1204;
+    const FIELD_NO = '案件番号';
+
+    function baseDate(field) {
+      return field && field.value ? new Date(field.value) : null;
+    }
+
+    function formatDate(date) {
+      return date ? date.toISOString().split('T')[0] : '';
+    }
+    // ...既存コード...
+
+    // ここから追加
+
+    kintone.events.on(
+      ['app.record.edit.change.設置予定日'],
+      function (event) {
+        const record = event.record;
+        const caseNo = record['案件No']?.value;
+        const yoteibi = record['設置予定日']?.value;
+        const kanryoubi = record['設置完了日']?.value;
+        if (!caseNo || !yoteibi) {
+          return event;
+        }
+
+        // 設置完了日が空 → 設置系
+        if (!kanryoubi) {
+          kintone.api(
+            kintone.api.url('/k/v1/records', true),
+            'GET',
+            {
+              app: TARGET_APP_ID,
+              query: `${FIELD_NO} = "${caseNo}"`,
+              fields: ['$id', 'タスク管理']
+            }
+          ).then(getResp => {
+            if (getResp.records.length === 0) return;
+            const target = getResp.records[0];
+            let found = false;
+            const updated = (target['タスク管理']?.value || []).map(row => {
+              if (row.value['タスク']?.value === '3：設置予定') {
+                found = true;
+                return {
+                  id: row.id,
+                  value: {
+                    ...row.value,
+                    日付: { value: yoteibi }
+                  }
+                };
+              }
+              return row;
+            });
+            // 追加はしない（foundがfalseでもpushしない）
+            if (found) {
+              return kintone.api(
+                kintone.api.url('/k/v1/record', true),
+                'PUT',
+                {
+                  app: TARGET_APP_ID,
+                  id: target.$id.value,
+                  record: { タスク管理: { value: updated } }
+                }
+              );
+            }
+          }).catch(e => {
+            console.error('🚨 設置予定日変更時の1204反映エラー', e);
+            event.error = '設置予定日変更時の1204反映でエラーが発生しました';
+          });
+          return event;
+        }
+
+        // 設置完了日が入っている → 回収系
+        const kaishuCaseNo = `回収_${caseNo}`;
+        kintone.api(
+          kintone.api.url('/k/v1/records', true),
+          'GET',
+          {
+            app: TARGET_APP_ID,
+            query: `${FIELD_NO} = "${kaishuCaseNo}"`,
+            fields: ['$id', 'タスク管理']
+          }
+        ).then(getResp => {
+          if (getResp.records.length === 0) return;
+          const target = getResp.records[0];
+          let found = false;
+          const updated = (target['タスク管理']?.value || []).map(row => {
+            if (row.value['タスク']?.value === '3：回収期限') {
+              found = true;
+              return {
+                id: row.id,
+                value: {
+                  ...row.value,
+                  日付: { value: yoteibi }
+                }
+              };
+            }
+            return row;
+          });
+          // 追加はしない（foundがfalseでもpushしない）
+          if (found) {
+            return kintone.api(
+              kintone.api.url('/k/v1/record', true),
+              'PUT',
+              {
+                app: TARGET_APP_ID,
+                id: target.$id.value,
+                record: { タスク管理: { value: updated } }
+              }
+            );
+          }
+        }).catch(e => {
+          console.error('🚨 設置予定日変更時の1204回収系反映エラー', e);
+          event.error = '設置予定日変更時の1204回収系反映でエラーが発生しました';
+        });
+        return event;
+      }
+    );
+
+    // ...既存コード...
 //
 // 案件ステータスが変わったときに処理。
 //  1. 案件ステータスが「回収_依頼受/回収日未定」の場合 → 必須チェック＆回収タスク追加
@@ -42,7 +167,10 @@
 
       return event;
     }
+
   );
+
+})();
 
   // ==================================================
   // ② 保存成功時：実処理（反映はここだけ）
@@ -84,20 +212,11 @@
           const taskEntries = [
             {
               value: {
-                タスク: { value: '3：回収予定' },
+                タスク: { value: '3：回収期限' },
                 日付: { value: formatDate(dateToUse) }
               }
             }
           ];
-
-          if (record['回収期限日']?.value) {
-            taskEntries.push({
-              value: {
-                タスク: { value: '3：回収期限' },
-                日付: { value: record['回収期限日'].value }
-              }
-            });
-          }
           const planNoRental = record['プランNo_ﾚﾝﾀﾙ']?.value;
           const sourceGenbaName = record['bukenmei']?.value || '';
 
